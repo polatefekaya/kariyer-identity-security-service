@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /src/Kariyer.Identity
+WORKDIR /src
 
-COPY ["*.csproj", "./"]
+COPY ["src/Kariyer.Identity/*.csproj", "./"]
 RUN dotnet restore
 
 COPY . .
