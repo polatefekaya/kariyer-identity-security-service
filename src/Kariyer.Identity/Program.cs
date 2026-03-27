@@ -21,7 +21,7 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-    
+
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("StrictFrontendPolicy", policy =>
@@ -40,7 +40,7 @@ try
                   .AllowCredentials();
         });
     });
-    
+
     builder.Services.AddSerilog((services, lc) => lc
         .ReadFrom.Configuration(builder.Configuration)
         .ReadFrom.Services(services)
@@ -52,8 +52,8 @@ try
         .WithTracing(tracing => tracing
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddNpgsql() 
-            .AddSource("MassTransit") 
+            .AddNpgsql()
+            .AddSource("MassTransit")
             .AddOtlpExporter())
         .WithMetrics(metrics => metrics
             .AddAspNetCoreInstrumentation()
@@ -61,11 +61,11 @@ try
             .AddMeter("MassTransit")
             .AddOtlpExporter());
 
-    string dbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+    string dbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
         ?? throw new ArgumentNullException("DefaultConnection is missing");
 
     builder.Services.AddDbContext<IdentityDbContext>(options =>
-        options.UseNpgsql(dbConnectionString, npgsqlOptions => 
+        options.UseNpgsql(dbConnectionString, npgsqlOptions =>
         {
             npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(2), errorCodesToAdd: null);
         }));
@@ -115,14 +115,14 @@ try
             builderContext.AddRequestTransform(async transformContext =>
             {
                 var user = transformContext.HttpContext.User;
-                
+
                 if (user.Identity != null && user.Identity.IsAuthenticated)
                 {
                     string? userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                     string? email = user.FindFirst(ClaimTypes.Email)?.Value;
-                    
-                    string role = user.FindFirst("account_type")?.Value ?? "candidate"; 
-    
+
+                    string role = user.FindFirst("account_type")?.Value ?? "candidate";
+
                     if (userId != null) transformContext.ProxyRequest.Headers.Add("X-User-Id", userId);
                     if (email != null) transformContext.ProxyRequest.Headers.Add("X-User-Email", email);
                     transformContext.ProxyRequest.Headers.Add("X-User-Role", role);
@@ -131,7 +131,7 @@ try
                 {
                     transformContext.ProxyRequest.Headers.Add("X-User-Role", "guest");
                 }
-                
+
                 await ValueTask.CompletedTask;
             });
         });
@@ -142,13 +142,17 @@ try
     });
 
     WebApplication app = builder.Build();
-    
+
     app.Use(async (HttpContext context, Func<Task> next) =>
     {
+        if (context.Request.Path.StartsWithSegments("/api/webhooks/supabase"))
+        {
+            context.Request.ContentType = "application/json";
+        }
         context.Request.EnableBuffering();
         await next();
     });
-    
+
     app.UseSerilogRequestLogging();
     app.UseCors("StrictFrontendPolicy");
     app.UseAuthentication();
