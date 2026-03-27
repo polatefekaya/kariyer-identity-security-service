@@ -6,7 +6,7 @@ namespace Kariyer.Identity.Domain.Entities;
 public class LegacyCompany
 {
     public string Uid { get; private set; } = string.Empty;
-    public Ulid? ExternalId { get; private set; }
+    public Guid? ExternalId { get; private set; }
     public bool IsAccountCompleted { get; private set; }
     public string Email { get; private set; } = string.Empty;
     public string Phone { get; private set; } = string.Empty;
@@ -36,7 +36,7 @@ public class LegacyCompany
 
     protected LegacyCompany() { }
 
-    public static LegacyCompany CreateFromExternalProvider(Ulid externalId, string email, string phone, string firstName, string lastName)
+    public static LegacyCompany CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName)
     {
         return new LegacyCompany
         {
@@ -53,7 +53,7 @@ public class LegacyCompany
         };
     }
     
-    public void LinkExternalAccount(Ulid externalId)
+    public void LinkExternalAccount(Guid externalId)
     {
         ExternalId = externalId;
         IsAccountCompleted = true;

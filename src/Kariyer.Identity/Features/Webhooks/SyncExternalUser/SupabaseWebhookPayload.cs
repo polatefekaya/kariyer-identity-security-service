@@ -9,7 +9,7 @@ public record SupabaseWebhookPayload(
 );
 
 public record SupabaseRecord(
-    [property: JsonPropertyName("id")] Ulid Id,
+    [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("email")] string Email,
     [property: JsonPropertyName("raw_user_meta_data")] UserMetaData MetaData
 );
