@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Kariyer.Identity/Kariyer.Identity.csproj" />
+  </Folder>
+</Solution>
