@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+   kariyer-identity:
+      build:
+         context: .
+         dockerfile: Dockerfile
+      container_name: kiss
+      restart: 'unless-stopped'
+      ports:
+        - "5001:8080"
+      env_file:
+        - .env.production
+      extra_hosts:  
+        - "host.docker.internal:host-gateway"   
+      networks:
+        - kz_network
+    
+networks:
+  kz_network:
+    driver: bridge

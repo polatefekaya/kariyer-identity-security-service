@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  kariyer-identity:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kiss-gateway
+    network_mode: host
+    restart: unless-stopped
+    env_file:
+      - .env.development
