@@ -15,7 +15,7 @@ public static class SyncExternalUserEndpoint
         {
             if (payload.Type != "INSERT") 
             {
-                return Results.Ok();
+                return Results.Json(new { }, contentType: "application/json");
             }
 
             ExternalUserCreatedEvent integrationEvent = new()
@@ -30,7 +30,7 @@ public static class SyncExternalUserEndpoint
 
             await publishEndpoint.Publish(integrationEvent, cancellationToken);
             
-            return Results.Ok();
+            return Results.Json(new { }, contentType: "application/json");
         }).AddEndpointFilter<SupabaseSignatureFilter>();
     }
 }

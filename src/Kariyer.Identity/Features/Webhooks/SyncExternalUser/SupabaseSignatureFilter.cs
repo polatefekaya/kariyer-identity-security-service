@@ -15,7 +15,8 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         HttpRequest request = context.HttpContext.Request;
-
+        context.HttpContext.Response.ContentType = "application/json";
+        
         request.EnableBuffering();
         request.Body.Position = 0;
 
