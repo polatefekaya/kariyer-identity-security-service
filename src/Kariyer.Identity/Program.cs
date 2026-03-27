@@ -88,35 +88,35 @@ try
         });
     });
 
-    string externalProviderUrl = builder.Configuration["ExternalProvider:Url"] ?? throw new ArgumentNullException("ExternalProvider:Url missing");
-        string externalProviderSecret = builder.Configuration["ExternalProvider:JwtSecret"] ?? throw new ArgumentNullException("ExternalProvider:JwtSecret missing");
-    
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
+    string externalProviderUrl = builder.Configuration["ExternalProvider:Url"]
+            ?? throw new ArgumentNullException("ExternalProvider:Url missing");
+
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.MapInboundClaims = false;
+            options.Authority = $"{externalProviderUrl}/auth/v1";
+
+            options.TokenValidationParameters = new TokenValidationParameters
             {
-                options.MapInboundClaims = false; 
-    
-                options.TokenValidationParameters = new TokenValidationParameters
+                ValidateIssuer = true,
+                ValidIssuer = $"{externalProviderUrl}/auth/v1",
+                ValidateAudience = true,
+                ValidAudience = "authenticated",
+                ValidateLifetime = true,
+
+                ClockSkew = TimeSpan.Zero
+            };
+
+            options.Events = new JwtBearerEvents
+            {
+                OnAuthenticationFailed = context =>
                 {
-                    ValidateIssuer = true,
-                    ValidIssuer = $"{externalProviderUrl}/auth/v1",
-                    ValidAudience = "authenticated",
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(externalProviderSecret)),
-                    ClockSkew = TimeSpan.Zero
-                };
-    
-                options.Events = new JwtBearerEvents
-                {
-                    OnAuthenticationFailed = context =>
-                    {
-                        Log.Warning("JWT Validation Failed: {Message}", context.Exception.Message);
-                        return Task.CompletedTask;
-                    }
-                };
-            });
+                    Log.Warning("JWT Validation Failed: {Message}", context.Exception.Message);
+                    return Task.CompletedTask;
+                }
+            };
+        });
 
     builder.Services.AddAuthorization();
 
@@ -127,22 +127,22 @@ try
                 builderContext.AddRequestTransform(transformContext =>
                 {
                     ClaimsPrincipal user = transformContext.HttpContext.User;
-    
+
                     transformContext.ProxyRequest.Headers.Remove("X-User-Id");
                     transformContext.ProxyRequest.Headers.Remove("X-User-Email");
                     transformContext.ProxyRequest.Headers.Remove("X-User-Role");
-    
+
                     if (user.Identity != null && user.Identity.IsAuthenticated)
                     {
                         string? userId = user.FindFirst("sub")?.Value;
                         string? email = user.FindFirst("email")?.Value;
                         string role = user.FindFirst("account_type")?.Value ?? "candidate";
-    
-                        if (!string.IsNullOrEmpty(userId)) 
+
+                        if (!string.IsNullOrEmpty(userId))
                         {
                             transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Id", userId);
                         }
-                        if (!string.IsNullOrEmpty(email)) 
+                        if (!string.IsNullOrEmpty(email))
                         {
                             transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Email", email);
                         }
@@ -152,7 +152,7 @@ try
                     {
                         transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Role", "guest");
                     }
-    
+
                     return ValueTask.CompletedTask;
                 });
             });
