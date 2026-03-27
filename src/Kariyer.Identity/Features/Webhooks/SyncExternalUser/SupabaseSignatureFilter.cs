@@ -14,89 +14,85 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
 
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
-        HttpContext httpContext = context.HttpContext;
+        var request = context.HttpContext.Request;
 
-        if (!httpContext.Request.Headers.TryGetValue("webhook-id", out StringValues msgId) ||
-            !httpContext.Request.Headers.TryGetValue("webhook-timestamp", out StringValues msgTimestamp) ||
-            !httpContext.Request.Headers.TryGetValue("webhook-signature", out StringValues signatureHeader))
+        request.EnableBuffering();
+        using StreamReader reader = new(request.Body, Encoding.UTF8, leaveOpen: true);
+        string rawBody = await reader.ReadToEndAsync();
+        request.Body.Position = 0;
+
+        string cleanSecret = _webhookSecret.StartsWith("whsec_") ? _webhookSecret[6..] : _webhookSecret;
+
+        if (request.Headers.TryGetValue("webhook-signature", out StringValues svixSignature))
         {
-            _logger.LogWarning("Blocked webhook request: Missing Standard Webhook headers.");
-            return Results.Unauthorized();
+            if (!VerifySvixSignature(request.Headers, rawBody, cleanSecret, svixSignature))
+            {
+                _logger.LogWarning("Blocked webhook request: Svix cryptographic signature mismatch.");
+                return Results.Unauthorized();
+            }
+            return await next(context);
         }
+
+        if (request.Headers.TryGetValue("x-supabase-signature", out StringValues legacySignature))
+        {
+            if (!VerifyLegacySignature(rawBody, cleanSecret, legacySignature))
+            {
+                _logger.LogWarning("Blocked webhook request: Legacy cryptographic signature mismatch.");
+                return Results.Unauthorized();
+            }
+            return await next(context);
+        }
+
+        _logger.LogWarning("Blocked webhook request: Missing ALL Supabase signature headers.");
+        return Results.Unauthorized();
+    }
+
+    private bool VerifySvixSignature(IHeaderDictionary headers, string rawBody, string secret, string signatureHeader)
+    {
+        if (!headers.TryGetValue("webhook-id", out var msgId) || !headers.TryGetValue("webhook-timestamp", out var msgTimestamp))
+            return false;
 
         if (!long.TryParse(msgTimestamp, out long timestampUnix))
-        {
-            _logger.LogWarning("Blocked webhook request: Invalid timestamp format.");
-            return Results.Unauthorized();
-        }
+            return false;
 
-        DateTimeOffset timestamp = DateTimeOffset.FromUnixTimeSeconds(timestampUnix);
-        if (Math.Abs((DateTimeOffset.UtcNow - timestamp).TotalSeconds) > ToleranceSeconds)
-        {
-            _logger.LogWarning("Blocked webhook request: Timestamp outside tolerance zone (Possible Replay Attack).");
-            return Results.Unauthorized();
-        }
+        if (Math.Abs((DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds(timestampUnix)).TotalSeconds) > ToleranceSeconds)
+            return false; // Replay attack
 
-        httpContext.Request.EnableBuffering();
-        using StreamReader reader = new(httpContext.Request.Body, Encoding.UTF8, leaveOpen: true);
-        string rawBody = await reader.ReadToEndAsync();
-        httpContext.Request.Body.Position = 0;
-
-        string secretPrefixRemoved = _webhookSecret.StartsWith("whsec_") ? _webhookSecret[6..] : _webhookSecret;
-        byte[] secretBytes;
         try
         {
-            secretBytes = Convert.FromBase64String(secretPrefixRemoved);
-        }
-        catch (FormatException)
-        {
-            _logger.LogError("CRITICAL: Webhook secret is not valid Base64.");
-            return Results.StatusCode(500);
-        }
+            byte[] secretBytes = Convert.FromBase64String(secret);
+            string signedContent = $"{msgId}.{msgTimestamp}.{rawBody}";
+            using HMACSHA256 hmac = new(secretBytes);
+            byte[] expectedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(signedContent));
 
-        string signedContent = $"{msgId}.{msgTimestamp}.{rawBody}";
-        byte[] signedContentBytes = Encoding.UTF8.GetBytes(signedContent);
-
-        using HMACSHA256 hmac = new(secretBytes);
-        byte[] expectedHash = hmac.ComputeHash(signedContentBytes);
-
-        string[] passedSignatures = signatureHeader.ToString().Split(' ');
-        bool isValidSignature = false;
-
-        foreach (string versionedSignature in passedSignatures)
-        {
-            string[] parts = versionedSignature.Split(',');
-            if (parts.Length < 2) continue;
-
-            string version = parts[0];
-            string base64Signature = parts[1];
-
-            if (version == "v1")
+            string[] passedSignatures = signatureHeader.ToString().Split(' ');
+            foreach (string versionedSignature in passedSignatures)
             {
-                byte[] providedSignatureBytes;
-                try
-                {
-                    providedSignatureBytes = Convert.FromBase64String(base64Signature);
-                }
-                catch (FormatException)
-                {
-                    continue;
-                }
+                string[] parts = versionedSignature.Split(',');
+                if (parts.Length < 2) continue;
 
-                if (CryptographicOperations.FixedTimeEquals(expectedHash, providedSignatureBytes))
-                {
-                    isValidSignature = true;
-                    break;
-                }
+                if (parts[0] == "v1" && CryptographicOperations.FixedTimeEquals(expectedHash, Convert.FromBase64String(parts[1])))
+                    return true;
             }
         }
+        catch { }
+        return false;
+    }
 
-        if (!isValidSignature)
+    private bool VerifyLegacySignature(string rawBody, string secret, string signatureHeader)
+    {
+        try
         {
-            _logger.LogError("Blocked webhook request: Cryptographic signature mismatch.");
-            return Results.Unauthorized();
-        }
+            using HMACSHA256 hmac = new(Encoding.UTF8.GetBytes(secret));
+            byte[] expectedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(rawBody));
+            
+            string expectedSignatureHex = BitConverter.ToString(expectedHash).Replace("-", "").ToLowerInvariant();
 
-        return await next(context);
+            return CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(expectedSignatureHex), 
+                Encoding.UTF8.GetBytes(signatureHeader.ToString()));
+        }
+        catch { }
+        return false;
     }
 }
