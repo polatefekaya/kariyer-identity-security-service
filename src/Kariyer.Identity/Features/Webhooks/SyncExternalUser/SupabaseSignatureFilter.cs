@@ -90,16 +90,7 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
             string signedContent = $"{msgId}.{msgTimestamp}.{rawBody}";
             using HMACSHA256 hmac = new(secretBytes);
             byte[] expectedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(signedContent));
-
-            _logger.LogError("=== CRYPTOGRAPHY DEBUG ===");
-            _logger.LogError("Webhook ID: {Id}", msgId.ToString());
-            _logger.LogError("Timestamp: {Time}", msgTimestamp.ToString());
-            _logger.LogError("Raw Body Length: {Length}", rawBody.Length);
-            _logger.LogError("Clean Secret Used (Base64): {Secret}", Convert.ToBase64String(secretBytes));
-            _logger.LogError("EXPECTED HASH (Computed by .NET): {Expected}", Convert.ToBase64String(expectedHash));
-            _logger.LogError("RECEIVED HASH (Sent by Supabase): {Received}", signatureHeader);
-            _logger.LogError("==========================");
-
+            
             string[] passedSignatures = signatureHeader.Split(' ');
             foreach (string versionedSignature in passedSignatures)
             {
