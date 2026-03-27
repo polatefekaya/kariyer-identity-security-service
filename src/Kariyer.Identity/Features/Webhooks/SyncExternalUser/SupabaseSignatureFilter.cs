@@ -10,7 +10,7 @@ public class SupabaseSignatureFilter : IEndpointFilter
 
     public SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSignatureFilter> logger)
     {
-        _webhookSecret = config["Supabase:WebhookSecret"] ?? throw new ArgumentNullException("Supabase:WebhookSecret is missing");
+        _webhookSecret = config["ExternalProvider:WebhookSecret"] ?? throw new ArgumentNullException("ExternalProvider:WebhookSecret is missing");
         _logger = logger;
     }
 
