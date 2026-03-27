@@ -1,5 +1,5 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /src
+WORKDIR /src/Kariyer.Identity
 
 COPY ["*.csproj", "./"]
 RUN dotnet restore
