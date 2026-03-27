@@ -89,52 +89,73 @@ try
     });
 
     string externalProviderUrl = builder.Configuration["ExternalProvider:Url"] ?? throw new ArgumentNullException("ExternalProvider:Url missing");
-    string externalProviderSecret = builder.Configuration["ExternalProvider:JwtSecret"] ?? throw new ArgumentNullException("ExternalProvider:JwtSecret missing");
-
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(options =>
-        {
-            options.Authority = $"{externalProviderUrl}/auth/v1";
-            options.TokenValidationParameters = new TokenValidationParameters
+        string externalProviderSecret = builder.Configuration["ExternalProvider:JwtSecret"] ?? throw new ArgumentNullException("ExternalProvider:JwtSecret missing");
+    
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
             {
-                ValidateIssuer = false,
-                ValidAudience = "authenticated",
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(externalProviderSecret))
-            };
-        });
+                options.MapInboundClaims = false; 
+    
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = $"{externalProviderUrl}/auth/v1",
+                    ValidAudience = "authenticated",
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(externalProviderSecret)),
+                    ClockSkew = TimeSpan.Zero
+                };
+    
+                options.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        Log.Warning("JWT Validation Failed: {Message}", context.Exception.Message);
+                        return Task.CompletedTask;
+                    }
+                };
+            });
 
     builder.Services.AddAuthorization();
 
     builder.Services.AddReverseProxy()
-        .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
-        .AddTransforms(builderContext =>
-        {
-            builderContext.AddRequestTransform(async transformContext =>
+            .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
+            .AddTransforms(builderContext =>
             {
-                var user = transformContext.HttpContext.User;
-
-                if (user.Identity != null && user.Identity.IsAuthenticated)
+                builderContext.AddRequestTransform(transformContext =>
                 {
-                    string? userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                    string? email = user.FindFirst(ClaimTypes.Email)?.Value;
-
-                    string role = user.FindFirst("account_type")?.Value ?? "candidate";
-
-                    if (userId != null) transformContext.ProxyRequest.Headers.Add("X-User-Id", userId);
-                    if (email != null) transformContext.ProxyRequest.Headers.Add("X-User-Email", email);
-                    transformContext.ProxyRequest.Headers.Add("X-User-Role", role);
-                }
-                else
-                {
-                    transformContext.ProxyRequest.Headers.Add("X-User-Role", "guest");
-                }
-
-                await ValueTask.CompletedTask;
+                    ClaimsPrincipal user = transformContext.HttpContext.User;
+    
+                    transformContext.ProxyRequest.Headers.Remove("X-User-Id");
+                    transformContext.ProxyRequest.Headers.Remove("X-User-Email");
+                    transformContext.ProxyRequest.Headers.Remove("X-User-Role");
+    
+                    if (user.Identity != null && user.Identity.IsAuthenticated)
+                    {
+                        string? userId = user.FindFirst("sub")?.Value;
+                        string? email = user.FindFirst("email")?.Value;
+                        string role = user.FindFirst("account_type")?.Value ?? "candidate";
+    
+                        if (!string.IsNullOrEmpty(userId)) 
+                        {
+                            transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Id", userId);
+                        }
+                        if (!string.IsNullOrEmpty(email)) 
+                        {
+                            transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Email", email);
+                        }
+                        transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Role", role);
+                    }
+                    else
+                    {
+                        transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Role", "guest");
+                    }
+    
+                    return ValueTask.CompletedTask;
+                });
             });
-        });
 
     builder.Services.ConfigureHttpJsonOptions(options =>
     {
