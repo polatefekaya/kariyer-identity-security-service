@@ -142,7 +142,13 @@ try
     });
 
     WebApplication app = builder.Build();
-
+    
+    app.Use(async (HttpContext context, Func<Task> next) =>
+    {
+        context.Request.EnableBuffering();
+        await next();
+    });
+    
     app.UseSerilogRequestLogging();
     app.UseCors("StrictFrontendPolicy");
     app.UseAuthentication();
