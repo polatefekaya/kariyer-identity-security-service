@@ -17,6 +17,8 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
         var request = context.HttpContext.Request;
 
         request.EnableBuffering();
+        request.Body.Position = 0;
+        
         using StreamReader reader = new(request.Body, Encoding.UTF8, leaveOpen: true);
         string rawBody = await reader.ReadToEndAsync();
         request.Body.Position = 0;
