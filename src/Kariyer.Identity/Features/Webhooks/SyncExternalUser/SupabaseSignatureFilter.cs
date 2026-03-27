@@ -6,9 +6,9 @@ namespace Kariyer.Identity.Features.Webhooks.SyncExternalUser;
 
 public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSignatureFilter> logger) : IEndpointFilter
 {
-    private readonly string _webhookSecret = config["ExternalProvider:WebhookSecret"] 
+    private readonly string _webhookSecret = config["ExternalProvider:WebhookSecret"]
         ?? throw new ArgumentNullException("CRITICAL: ExternalProvider:WebhookSecret is missing from configuration.");
-    
+
     private readonly ILogger<SupabaseSignatureFilter> _logger = logger;
     private const int ToleranceSeconds = 300;
 
@@ -18,7 +18,7 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
 
         request.EnableBuffering();
         request.Body.Position = 0;
-        
+
         using StreamReader reader = new(request.Body, Encoding.UTF8, leaveOpen: true);
         string rawBody = await reader.ReadToEndAsync();
         request.Body.Position = 0;
@@ -91,6 +91,15 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
             using HMACSHA256 hmac = new(secretBytes);
             byte[] expectedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(signedContent));
 
+            _logger.LogError("=== CRYPTOGRAPHY DEBUG ===");
+            _logger.LogError("Webhook ID: {Id}", msgId.ToString());
+            _logger.LogError("Timestamp: {Time}", msgTimestamp.ToString());
+            _logger.LogError("Raw Body Length: {Length}", rawBody.Length);
+            _logger.LogError("Clean Secret Used (Base64): {Secret}", Convert.ToBase64String(secretBytes));
+            _logger.LogError("EXPECTED HASH (Computed by .NET): {Expected}", Convert.ToBase64String(expectedHash));
+            _logger.LogError("RECEIVED HASH (Sent by Supabase): {Received}", signatureHeader);
+            _logger.LogError("==========================");
+
             string[] passedSignatures = signatureHeader.Split(' ');
             foreach (string versionedSignature in passedSignatures)
             {
@@ -99,7 +108,7 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
 
                 if (parts[0] == "v1")
                 {
-                    try 
+                    try
                     {
                         byte[] providedSignatureBytes = Convert.FromBase64String(parts[1]);
                         if (CryptographicOperations.FixedTimeEquals(expectedHash, providedSignatureBytes))
@@ -112,7 +121,7 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
             }
         }
         catch { }
-        
+
         return false;
     }
 
@@ -122,15 +131,15 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
         {
             using HMACSHA256 hmac = new(secretBytes);
             byte[] expectedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(rawBody));
-            
+
             string expectedSignatureHex = BitConverter.ToString(expectedHash).Replace("-", "").ToLowerInvariant();
 
             return CryptographicOperations.FixedTimeEquals(
-                Encoding.UTF8.GetBytes(expectedSignatureHex), 
+                Encoding.UTF8.GetBytes(expectedSignatureHex),
                 Encoding.UTF8.GetBytes(signatureHeader));
         }
         catch { }
-        
+
         return false;
     }
 }
