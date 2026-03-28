@@ -23,6 +23,8 @@ public class SupabaseSignatureFilter(IConfiguration config, ILogger<SupabaseSign
         using StreamReader reader = new(request.Body, Encoding.UTF8, leaveOpen: true);
         string rawBody = await reader.ReadToEndAsync();
         request.Body.Position = 0;
+        
+        _logger.LogInformation("Raw Payload: {RawBody}", rawBody);
 
         string cleanSecret = _webhookSecret;
         if (cleanSecret.StartsWith("v1,"))

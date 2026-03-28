@@ -10,7 +10,6 @@ using OpenTelemetry.Trace;
 using Serilog;
 using Yarp.ReverseProxy.Transforms;
 using Kariyer.Identity.Infrastructure.Persistence;
-using Kariyer.Identity.Features.Webhooks.SyncSupabaseUser;
 using Npgsql;
 using Kariyer.Identity.Features.Webhooks.SyncExternalUser;
 

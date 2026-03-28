@@ -1,4 +1,3 @@
-using Kariyer.Identity.Features.Webhooks.SyncSupabaseUser;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
 
