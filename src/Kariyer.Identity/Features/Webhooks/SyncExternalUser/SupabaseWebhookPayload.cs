@@ -2,27 +2,32 @@ using System.Text.Json.Serialization;
 
 namespace Kariyer.Identity.Features.Webhooks.SyncExternalUser;
 
-public record SupabaseWebhookPayload(
-    [property: JsonPropertyName("type")] string? Type,
-    [property: JsonPropertyName("record")] SupabaseRecord? Record
+public record SupabaseAuthHookPayload(
+    [property: JsonPropertyName("metadata")] AuthHookMetadata? Metadata,
+    [property: JsonPropertyName("user")] SupabaseAuthUser? User
 );
 
-public record SupabaseRecord(
+public record AuthHookMetadata(
+    [property: JsonPropertyName("name")] string? Name
+);
+
+public record SupabaseAuthUser(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("email")] string? Email,
-    [property: JsonPropertyName("raw_user_meta_data")] UserMetaData? MetaData
+    [property: JsonPropertyName("user_metadata")] SupabaseUserMetadata? UserMetadata
 );
 
-public record UserMetaData(
+public record SupabaseUserMetadata(
     [property: JsonPropertyName("account_type")] string? AccountType,
     [property: JsonPropertyName("first_name")] string? FirstName,
     [property: JsonPropertyName("last_name")] string? LastName,
     [property: JsonPropertyName("phone_number")] string? PhoneNumber
 );
 
-[JsonSerializable(typeof(SupabaseWebhookPayload))]
-[JsonSerializable(typeof(SupabaseRecord))]
-[JsonSerializable(typeof(UserMetaData))]
+[JsonSerializable(typeof(SupabaseAuthHookPayload))]
+[JsonSerializable(typeof(AuthHookMetadata))]
+[JsonSerializable(typeof(SupabaseAuthUser))]
+[JsonSerializable(typeof(SupabaseUserMetadata))]
 public partial class WebhookJsonContext : JsonSerializerContext
 {
 }
