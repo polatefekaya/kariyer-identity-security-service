@@ -20,7 +20,7 @@ public class SyncExternalUserConsumer : IConsumer<ExternalUserCreatedEvent>
     {
         _logger.LogInformation("Processing Supabase UUID: {UserId}", context.Message.UserId);
         ExternalUserCreatedEvent message = context.Message;
-        bool isCompany = message.AccountType == "b";
+        bool isCompany = message.AccountType == "company";
 
         if (isCompany)
         {

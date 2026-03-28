@@ -150,7 +150,7 @@ try
                     {
                         string? userId = user.FindFirst("sub")?.Value;
                         string? email = user.FindFirst("email")?.Value;
-                        string role = user.FindFirst("account_type")?.Value ?? "candidate";
+                        string role = user.FindFirst("account_type")?.Value ?? "employee";
 
                         if (!string.IsNullOrEmpty(userId))
                         {
