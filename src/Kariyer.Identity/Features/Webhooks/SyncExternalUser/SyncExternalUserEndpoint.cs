@@ -46,58 +46,64 @@ public static class SyncExternalUserEndpoint
                              string.Equals(accountType, "employer", StringComparison.OrdinalIgnoreCase) || 
                              string.Equals(accountType, "c", StringComparison.OrdinalIgnoreCase);
 
-            IDbContextTransaction transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                if (isCompany)
-                {
-                    LegacyCompany? existingCompany = await dbContext.Companies
-                        .FirstOrDefaultAsync(c => c.Email == email, cancellationToken);
+                IExecutionStrategy strategy = dbContext.Database.CreateExecutionStrategy();
 
-                    if (existingCompany != null)
+                await strategy.ExecuteAsync(async () =>
+                {
+                    using IDbContextTransaction transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                    
+                    if (isCompany)
                     {
-                        if (existingCompany.ExternalId != externalId)
+                        LegacyCompany? existingCompany = await dbContext.Companies
+                            .FirstOrDefaultAsync(c => c.Email == email, cancellationToken);
+
+                        if (existingCompany != null)
                         {
-                            existingCompany.LinkExternalAccount(externalId);
-                            dbContext.Companies.Update(existingCompany);
-                            logger.LogInformation("Migrated Legacy Company: {Email} to External ID: {UserId}", email, externalId);
+                            if (existingCompany.ExternalId != externalId)
+                            {
+                                existingCompany.LinkExternalAccount(externalId);
+                                dbContext.Companies.Update(existingCompany);
+                                logger.LogInformation("Migrated Legacy Company: {Email} to External ID: {UserId}", email, externalId);
+                            }
+                        }
+                        else
+                        {
+                            LegacyCompany newCompany = LegacyCompany.CreateFromExternalProvider(
+                                externalId, email, phoneNumber, firstName, lastName
+                            );
+                            await dbContext.Companies.AddAsync(newCompany, cancellationToken);
+                            logger.LogInformation("Created New Company: {Email}. Pending frontend onboarding.", email);
                         }
                     }
                     else
                     {
-                        LegacyCompany newCompany = LegacyCompany.CreateFromExternalProvider(
-                            externalId, email, phoneNumber, firstName, lastName
-                        );
-                        await dbContext.Companies.AddAsync(newCompany, cancellationToken);
-                        logger.LogInformation("Created New Company: {Email}. Pending frontend onboarding.", email);
-                    }
-                }
-                else
-                {
-                    LegacyEmployee? existingEmployee = await dbContext.Employees
-                        .FirstOrDefaultAsync(e => e.Email == email, cancellationToken);
+                        LegacyEmployee? existingEmployee = await dbContext.Employees
+                            .FirstOrDefaultAsync(e => e.Email == email, cancellationToken);
 
-                    if (existingEmployee != null)
-                    {
-                        if (existingEmployee.ExternalId != externalId)
+                        if (existingEmployee != null)
                         {
-                            existingEmployee.LinkExternalAccount(externalId);
-                            dbContext.Employees.Update(existingEmployee);
-                            logger.LogInformation("Migrated Legacy Employee: {Email} to External ID: {UserId}", email, externalId);
+                            if (existingEmployee.ExternalId != externalId)
+                            {
+                                existingEmployee.LinkExternalAccount(externalId);
+                                dbContext.Employees.Update(existingEmployee);
+                                logger.LogInformation("Migrated Legacy Employee: {Email} to External ID: {UserId}", email, externalId);
+                            }
+                        }
+                        else
+                        {
+                            LegacyEmployee newEmployee = LegacyEmployee.CreateFromExternalProvider(
+                                externalId, email, phoneNumber, firstName, lastName
+                            );
+                            await dbContext.Employees.AddAsync(newEmployee, cancellationToken);
+                            logger.LogInformation("Created New Employee: {Email}. Pending frontend onboarding.", email);
                         }
                     }
-                    else
-                    {
-                        LegacyEmployee newEmployee = LegacyEmployee.CreateFromExternalProvider(
-                            externalId, email, phoneNumber, firstName, lastName
-                        );
-                        await dbContext.Employees.AddAsync(newEmployee, cancellationToken);
-                        logger.LogInformation("Created New Employee: {Email}. Pending frontend onboarding.", email);
-                    }
-                }
 
-                await dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                });
 
                 ExternalUserCreatedEvent integrationEvent = new()
                 {
@@ -117,9 +123,7 @@ public static class SyncExternalUserEndpoint
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
                 logger.LogError(ex, "FATAL: Database transaction failed for External ID: {Id}. Rejecting Supabase signup.", externalId);
-                
                 return Results.StatusCode(500); 
             }
         }).AddEndpointFilter<SupabaseSignatureFilter>();
