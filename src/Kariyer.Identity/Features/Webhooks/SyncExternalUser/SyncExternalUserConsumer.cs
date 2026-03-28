@@ -18,6 +18,7 @@ public class SyncExternalUserConsumer : IConsumer<ExternalUserCreatedEvent>
 
     public async Task Consume(ConsumeContext<ExternalUserCreatedEvent> context)
     {
+        _logger.LogInformation("Processing Supabase UUID: {UserId}", context.Message.UserId);
         ExternalUserCreatedEvent message = context.Message;
         bool isCompany = message.AccountType == "b";
 

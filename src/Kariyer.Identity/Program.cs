@@ -84,7 +84,22 @@ try
                 hostConfigurator.Password(builder.Configuration["RabbitMQ:Password"] ?? "guest");
             });
 
-            rabbitConfigurator.ConfigureEndpoints(context);
+            rabbitConfigurator.Message<ExternalUserCreatedEvent>(topology =>
+            {
+                topology.SetEntityName("identity.external.created");
+            });
+
+            rabbitConfigurator.ReceiveEndpoint("external-user-created-queue", endpointConfigurator =>
+            {
+                endpointConfigurator.ConfigureConsumeTopology = false;
+
+                endpointConfigurator.Bind("identity.external.created", bindConfigurator =>
+                {
+                    bindConfigurator.ExchangeType = "fanout";
+                });
+
+                endpointConfigurator.ConfigureConsumer<SyncExternalUserConsumer>(context);
+            });
         });
     });
 

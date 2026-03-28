@@ -10,9 +10,12 @@ public static class SyncExternalUserEndpoint
     {
         app.MapPost("/api/webhooks/supabase/user-created", async (
             [FromBody] SupabaseWebhookPayload payload,
-            [FromServices] IPublishEndpoint publishEndpoint,
+            IPublishEndpoint publishEndpoint,
+            ILogger<SupabaseSignatureFilter> logger,
             CancellationToken cancellationToken) =>
         {
+            logger.LogInformation("Webhook received. Preparing to publish to RabbitMQ.");
+            
             if (payload.Type != "INSERT") 
             {
                 return Results.Json(new { }, contentType: "application/json");
@@ -27,6 +30,8 @@ public static class SyncExternalUserEndpoint
                 LastName = payload.Record.MetaData.LastName ?? string.Empty,
                 PhoneNumber = payload.Record.MetaData.PhoneNumber ?? string.Empty
             };
+
+            logger.LogInformation("Integration Event publishing. AType: {type}, Id: {id}, Email: {email}", integrationEvent.AccountType, integrationEvent.UserId, integrationEvent.Email);
 
             await publishEndpoint.Publish(integrationEvent, cancellationToken);
             
