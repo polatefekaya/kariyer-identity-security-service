@@ -132,7 +132,7 @@ try
             };
         });
 
-    builder.Services.AddAuthorization();
+    //builder.Services.AddAuthorization();
 
     builder.Services.AddReverseProxy()
             .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
