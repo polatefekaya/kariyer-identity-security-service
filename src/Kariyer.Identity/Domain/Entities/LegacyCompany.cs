@@ -45,7 +45,7 @@ public class LegacyCompany
             IsAccountCompleted = false,
             Email = email,
             Phone = phone,
-            CompanyName = $"{firstName} {lastName} (Pending Details)",
+            CompanyName = $"{firstName} {lastName} Şirketi",
             AuthorizedName = firstName,
             AuthorizedSurname = lastName,
             Username = $"{firstName.ToLower()}{lastName.ToLower()}{DateTime.UtcNow.Millisecond}",
