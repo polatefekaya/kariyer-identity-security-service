@@ -44,7 +44,7 @@ public static class SyncExternalUserEndpoint
 
             bool isCompany = string.Equals(accountType, "company", StringComparison.OrdinalIgnoreCase) || 
                              string.Equals(accountType, "employer", StringComparison.OrdinalIgnoreCase) || 
-                             string.Equals(accountType, "c", StringComparison.OrdinalIgnoreCase);
+                             string.Equals(accountType, "b", StringComparison.OrdinalIgnoreCase);
 
             try
             {

@@ -12,6 +12,7 @@ using Yarp.ReverseProxy.Transforms;
 using Kariyer.Identity.Infrastructure.Persistence;
 using Npgsql;
 using Kariyer.Identity.Features.Webhooks.SyncExternalUser;
+using Kariyer.Identity.Infrastructure.Gateway;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -134,43 +135,8 @@ try
 
     //builder.Services.AddAuthorization();
 
-    builder.Services.AddReverseProxy()
-            .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
-            .AddTransforms(builderContext =>
-            {
-                builderContext.AddRequestTransform(transformContext =>
-                {
-                    ClaimsPrincipal user = transformContext.HttpContext.User;
-
-                    transformContext.ProxyRequest.Headers.Remove("X-User-Id");
-                    transformContext.ProxyRequest.Headers.Remove("X-User-Email");
-                    transformContext.ProxyRequest.Headers.Remove("X-User-Role");
-
-                    if (user.Identity != null && user.Identity.IsAuthenticated)
-                    {
-                        string? userId = user.FindFirst("sub")?.Value;
-                        string? email = user.FindFirst("email")?.Value;
-                        string role = user.FindFirst("account_type")?.Value ?? "employee";
-
-                        if (!string.IsNullOrEmpty(userId))
-                        {
-                            transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Id", userId);
-                        }
-                        if (!string.IsNullOrEmpty(email))
-                        {
-                            transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Email", email);
-                        }
-                        transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Role", role);
-                    }
-                    else
-                    {
-                        transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Role", "guest");
-                    }
-
-                    return ValueTask.CompletedTask;
-                });
-            });
-
+    builder.Services.AddCustomReverseProxy(builder.Configuration);
+    
     builder.Services.ConfigureHttpJsonOptions(options =>
     {
         options.SerializerOptions.TypeInfoResolverChain.Insert(0, WebhookJsonContext.Default);
