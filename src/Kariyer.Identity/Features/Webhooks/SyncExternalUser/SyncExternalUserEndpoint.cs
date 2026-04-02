@@ -22,10 +22,9 @@ public static class SyncExternalUserEndpoint
                 payload.Metadata?.Name ?? "NULL", 
                 payload.User?.Id.ToString() ?? "NULL");
 
-            if (!string.Equals(payload.Metadata?.Name, "before-user-created", StringComparison.OrdinalIgnoreCase) && 
-                !string.Equals(payload.Metadata?.Name, "after-user-created", StringComparison.OrdinalIgnoreCase)) 
+            if (!string.Equals(payload.Metadata?.Name, "after-user-created", StringComparison.OrdinalIgnoreCase)) 
             {
-                logger.LogWarning("Webhook aborted. Expected user creation hook, got '{Name}'.", payload.Metadata?.Name);
+                logger.LogWarning("Webhook aborted. Ignoring hook '{Name}' to prevent ghost records.", payload.Metadata?.Name);
                 return Results.Json(new { }, contentType: "application/json");
             }
 
@@ -37,14 +36,43 @@ public static class SyncExternalUserEndpoint
 
             Guid externalId = payload.User.Id;
             string email = payload.User.Email ?? string.Empty;
-            string accountType = payload.User.UserMetadata?.AccountType ?? "employee";
+            
+            string? accountType = payload.User.UserMetadata?.AccountType;
+            if (string.IsNullOrWhiteSpace(accountType))
+            {
+                logger.LogError("FATAL: Webhook payload is missing 'account_type' in UserMetadata. Aborting sync for User ID: {Id}", externalId);
+                return Results.BadRequest("Missing account_type. Cannot determine identity routing.");
+            }
+
             string firstName = payload.User.UserMetadata?.FirstName ?? string.Empty;
             string lastName = payload.User.UserMetadata?.LastName ?? string.Empty;
+            string? fullName = payload.User.UserMetadata?.FullName ?? payload.User.UserMetadata?.Name;
+
+            if (string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName) && !string.IsNullOrWhiteSpace(fullName))
+            {
+                var nameParts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (nameParts.Length > 1)
+                {
+                    lastName = nameParts.Last();
+                    firstName = string.Join(" ", nameParts.Take(nameParts.Length - 1));
+                }
+                else
+                {
+                    firstName = fullName;
+                }
+            }
+
             string phoneNumber = payload.User.UserMetadata?.PhoneNumber ?? string.Empty;
+            string avatarUrl = payload.User.UserMetadata?.AvatarUrl ?? string.Empty;
 
             bool isCompany = string.Equals(accountType, "company", StringComparison.OrdinalIgnoreCase) || 
                              string.Equals(accountType, "employer", StringComparison.OrdinalIgnoreCase) || 
                              string.Equals(accountType, "b", StringComparison.OrdinalIgnoreCase);
+
+            bool isAdmin = string.Equals(accountType, "admin", StringComparison.OrdinalIgnoreCase) || 
+                           string.Equals(accountType, "super_admin", StringComparison.OrdinalIgnoreCase) || 
+                           string.Equals(accountType, "moderator", StringComparison.OrdinalIgnoreCase) || 
+                           string.Equals(accountType, "a", StringComparison.OrdinalIgnoreCase);
 
             try
             {
@@ -52,8 +80,10 @@ public static class SyncExternalUserEndpoint
 
                 await strategy.ExecuteAsync(async () =>
                 {
+                    dbContext.ChangeTracker.Clear();
+
                     using IDbContextTransaction transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-                    
+
                     if (isCompany)
                     {
                         LegacyCompany? existingCompany = await dbContext.Companies
@@ -77,7 +107,30 @@ public static class SyncExternalUserEndpoint
                             logger.LogInformation("Created New Company: {Email}. Pending frontend onboarding.", email);
                         }
                     }
-                    else
+                    else if (isAdmin)
+                    {
+                        LegacyAdmin? existingAdmin = await dbContext.Admins
+                            .FirstOrDefaultAsync(a => a.Email == email, cancellationToken);
+
+                        if (existingAdmin != null)
+                        {
+                            if (existingAdmin.ExternalId != externalId)
+                            {
+                                existingAdmin.LinkExternalAccount(externalId);
+                                dbContext.Admins.Update(existingAdmin);
+                                logger.LogInformation("Migrated Legacy Admin: {Email} to External ID: {UserId}", email, externalId);
+                            }
+                        }
+                        else
+                        {
+                            LegacyAdmin newAdmin = LegacyAdmin.CreateFromExternalProvider(
+                                externalId, email, phoneNumber, firstName, lastName, accountType
+                            );
+                            await dbContext.Admins.AddAsync(newAdmin, cancellationToken);
+                            logger.LogInformation("Created New Admin in local DB: {Email}.", email);
+                        }
+                    }
+                    else 
                     {
                         LegacyEmployee? existingEmployee = await dbContext.Employees
                             .FirstOrDefaultAsync(e => e.Email == email, cancellationToken);
@@ -101,23 +154,24 @@ public static class SyncExternalUserEndpoint
                         }
                     }
 
+                    ExternalUserCreatedEvent integrationEvent = new()
+                    {
+                        UserId = externalId,
+                        Email = email,
+                        AccountType = accountType,
+                        FirstName = firstName,
+                        LastName = lastName,
+                        PhoneNumber = phoneNumber,
+                        AvatarUrl = avatarUrl
+                    };
+
+                    logger.LogInformation("Integration Event publishing to RabbitMQ for External ID: {Id}", externalId);
+                    
+                    await publishEndpoint.Publish(integrationEvent, cancellationToken);
+
                     await dbContext.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
                 });
-
-                ExternalUserCreatedEvent integrationEvent = new()
-                {
-                    UserId = externalId,
-                    Email = email,
-                    AccountType = accountType,
-                    FirstName = firstName,
-                    LastName = lastName,
-                    PhoneNumber = phoneNumber
-                };
-
-                logger.LogInformation("Integration Event publishing to RabbitMQ for External ID: {Id}", externalId);
-                
-                _ = publishEndpoint.Publish(integrationEvent, CancellationToken.None);
 
                 return Results.Json(new { }, contentType: "application/json");
             }

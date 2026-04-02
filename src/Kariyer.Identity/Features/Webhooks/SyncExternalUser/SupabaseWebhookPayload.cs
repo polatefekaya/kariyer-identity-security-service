@@ -21,7 +21,10 @@ public record SupabaseUserMetadata(
     [property: JsonPropertyName("account_type")] string? AccountType,
     [property: JsonPropertyName("first_name")] string? FirstName,
     [property: JsonPropertyName("last_name")] string? LastName,
-    [property: JsonPropertyName("phone_number")] string? PhoneNumber
+    [property: JsonPropertyName("phone_number")] string? PhoneNumber,
+    [property: JsonPropertyName("full_name")] string? FullName,
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("avatar_url")] string? AvatarUrl
 );
 
 [JsonSerializable(typeof(SupabaseAuthHookPayload))]

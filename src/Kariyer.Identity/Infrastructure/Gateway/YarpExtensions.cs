@@ -37,17 +37,12 @@ public static class YarpExtensions
                             try
                             {
                                 using JsonDocument document = JsonDocument.Parse(userMetadataClaim);
-                                
-                                JsonElement accountTypeProp;
-                                if (document.RootElement.TryGetProperty("account_type", out accountTypeProp))
+                                if (document.RootElement.TryGetProperty("account_type", out JsonElement accountTypeProp))
                                 {
                                     role = accountTypeProp.GetString();
                                 }
                             }
-                            catch (JsonException)
-                            {
-                                // Malformed JSON in JWT. 
-                            }
+                            catch (JsonException) { /* Malformed JSON */ }
                         }
                         
                         if (string.IsNullOrWhiteSpace(role) && user.HasClaim(c => c.Type == "account_type"))
@@ -57,14 +52,10 @@ public static class YarpExtensions
 
                         if (string.IsNullOrWhiteSpace(role))
                         {
-                            throw new UnauthorizedAccessException($"GATEWAY ERROR: Authenticated user '{userId ?? "UNKNOWN"}' is missing the 'account_type' claim in Supabase. Gateway routing aborted to prevent state corruption.");
+                            throw new UnauthorizedAccessException($"SECURITY ALERT: Authenticated user '{userId ?? "UNKNOWN"}' is missing the 'account_type' claim. Routing aborted to prevent privilege escalation.");
                         }
 
-                        if (string.Equals(role, "b", StringComparison.OrdinalIgnoreCase) || 
-                            string.Equals(role, "employer", StringComparison.OrdinalIgnoreCase))
-                        {
-                            role = "company";
-                        }
+                        role = NormalizeRole(role);
 
                         if (!string.IsNullOrEmpty(userId))
                         {
@@ -87,5 +78,19 @@ public static class YarpExtensions
             });
 
         return services;
+    }
+
+    private static string NormalizeRole(string rawRole)
+    {
+        return rawRole.ToLowerInvariant() switch
+        {
+            "b" or "employer" or "company" => "company",
+            "c" or "employee" => "employee",
+            "a" or "admin" => "admin",
+            "co" or "community" => "community",
+            "super_admin" => "super_admin",
+            "moderator" => "moderator",
+            _ => rawRole.ToLowerInvariant()
+        };
     }
 }

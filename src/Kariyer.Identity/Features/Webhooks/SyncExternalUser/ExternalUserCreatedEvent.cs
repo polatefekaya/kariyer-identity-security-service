@@ -10,4 +10,5 @@ public record ExternalUserCreatedEvent
     public string FirstName { get; init; } = string.Empty;
     public string LastName { get; init; } = string.Empty;
     public string PhoneNumber { get; init; } = string.Empty;
+    public string AvatarUrl { get; init; } = string.Empty;
 }
