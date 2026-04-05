@@ -13,6 +13,8 @@ using Kariyer.Identity.Infrastructure.Persistence;
 using Npgsql;
 using Kariyer.Identity.Features.Webhooks.SyncExternalUser;
 using Kariyer.Identity.Infrastructure.Gateway;
+using Kariyer.Identity.Features.Account.AccountDidNotCompleted;
+using StackExchange.Redis;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -21,7 +23,12 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+    
+    string garnetConn = builder.Configuration.GetConnectionString("Garnet")
+        ?? throw new InvalidOperationException("Garnet connection string missing.");
 
+    builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(garnetConn));
+    
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("StrictFrontendPolicy", policy =>
@@ -88,7 +95,12 @@ try
             {
                 topology.SetEntityName("identity.external.created");
             });
-
+            
+            rabbitConfigurator.Message<AccountDidNotCompletedEvent>(topology =>
+            {
+                topology.SetEntityName("identity.account.not-completed");
+            });
+            
             rabbitConfigurator.ReceiveEndpoint("external-user-created-queue", endpointConfigurator =>
             {
                 endpointConfigurator.ConfigureConsumeTopology = false;
@@ -134,7 +146,8 @@ try
         });
 
     //builder.Services.AddAuthorization();
-
+    
+    builder.Services.AddHostedService<IncompleteAccountSweeperWorker>();
     builder.Services.AddCustomReverseProxy(builder.Configuration);
     
     builder.Services.ConfigureHttpJsonOptions(options =>

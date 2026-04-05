@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Kariyer.Identity.Domain.Entities;
 
 public class LegacyCompany
@@ -33,6 +30,8 @@ public class LegacyCompany
     public List<int> SeenCv { get; private set; } = [];
     public List<int> DownloadedCv { get; private set; } = [];
     public List<string> Notifications { get; private set; } = [];
+    public DateTimeOffset CreatedDate { get; private set; }
+    public int OnboardingReminderStep { get; internal set; }
 
     protected LegacyCompany() { }
 
@@ -48,8 +47,10 @@ public class LegacyCompany
             CompanyName = $"{firstName} {lastName} Şirketi",
             AuthorizedName = firstName,
             AuthorizedSurname = lastName,
-            Username = $"{firstName.ToLower()}{lastName.ToLower()}{DateTime.UtcNow.Millisecond}",
-            Password = string.Empty
+            Username = $"{firstName.ToLower()}{lastName.ToLower()}{DateTimeOffset.UtcNow.Millisecond}",
+            Password = string.Empty,
+            CreatedDate = DateTimeOffset.UtcNow,
+            OnboardingReminderStep = 0
         };
     }
     

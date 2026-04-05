@@ -22,6 +22,16 @@ public class LegacyEmployeeConfiguration : IEntityTypeConfiguration<LegacyEmploy
         builder.Property(e => e.Username).HasColumnName("username").IsRequired();
         builder.Property(e => e.Password).HasColumnName("password").IsRequired();
         builder.Property(e => e.BirthDate).HasColumnName("birth_date").IsRequired();
+
+        builder.Property(e => e.CreatedDate)
+               .HasColumnName("created_date")
+               .HasDefaultValueSql("CURRENT_TIMESTAMP")
+               .IsRequired();
+
+        builder.Property(e => e.OnboardingReminderStep)
+               .HasColumnName("onboarding_reminder_step")
+               .HasDefaultValue(0)
+               .IsRequired();
         
         builder.Property(e => e.SelectedSkills).HasColumnName("selected_skills").HasColumnType("text[]");
         builder.Property(e => e.Following).HasColumnName("following").HasColumnType("text[]");

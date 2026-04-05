@@ -13,8 +13,8 @@ public class LegacyCompanyConfiguration : IEntityTypeConfiguration<LegacyCompany
         builder.HasKey(c => c.Uid);
 
         builder.Property(c => c.Uid).HasColumnName("uid").IsRequired();
-        builder.Property(e => e.ExternalId).HasColumnName("external_id").IsRequired(false); 
-        builder.Property(e => e.IsAccountCompleted).HasColumnName("is_account_completed").HasDefaultValue(false).IsRequired();
+        builder.Property(c => c.ExternalId).HasColumnName("external_id").IsRequired(false); 
+        builder.Property(c => c.IsAccountCompleted).HasColumnName("is_account_completed").HasDefaultValue(false).IsRequired();
         builder.Property(c => c.Email).HasColumnName("email").IsRequired();
         builder.Property(c => c.Phone).HasColumnName("phone").IsRequired();
         builder.Property(c => c.CompanyName).HasColumnName("company_name").IsRequired();
@@ -22,6 +22,16 @@ public class LegacyCompanyConfiguration : IEntityTypeConfiguration<LegacyCompany
         builder.Property(c => c.AuthorizedSurname).HasColumnName("authorized_surname").IsRequired();
         builder.Property(c => c.Username).HasColumnName("username").IsRequired();
         builder.Property(c => c.Password).HasColumnName("password").IsRequired();
+
+        builder.Property(c => c.CreatedDate)
+               .HasColumnName("created_date")
+               .HasDefaultValueSql("CURRENT_TIMESTAMP")
+               .IsRequired();
+
+        builder.Property(c => c.OnboardingReminderStep)
+               .HasColumnName("onboarding_reminder_step")
+               .HasDefaultValue(0)
+               .IsRequired();
 
         builder.Property(c => c.Followers).HasColumnName("followers").HasColumnType("text[]");
         builder.Property(c => c.SubCompanies).HasColumnName("sub_companies").HasColumnType("text[]");
