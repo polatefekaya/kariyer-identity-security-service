@@ -34,18 +34,18 @@ try
         options.AddPolicy("StrictFrontendPolicy", policy =>
         {
             policy.WithOrigins(
-                    "https://www.kariyerzamani.com",
-                    "https://auth.kariyerzamani.com",
-                    "https://kz-auth.kariyerzamani.com",
-                    "http://localhost:3000",
-                    "http://localhost:5173",
-                    "http://kariyerzamani.com",
-                    "http://admin.kariyerzamani.com",
-                    "http://tst.kariyerzamani.com"
+                "https://www.kariyerzamani.com",
+                "https://auth.kariyerzamani.com",
+                "https://kz-auth.kariyerzamani.com",
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://kariyerzamani.com",
+                "https://admin.kariyerzamani.com",
+                "https://tst.kariyerzamani.com"
             )
-                  .AllowAnyMethod()
-                  .WithHeaders("Authorization", "Content-Type", "Accept")
-                  .AllowCredentials();
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
         });
     });
 
@@ -169,9 +169,10 @@ try
     });
 
     app.UseSerilogRequestLogging();
+    app.UseRouting();
     app.UseCors("StrictFrontendPolicy");
     app.UseAuthentication();
-    app.UseAuthorization();
+    //app.UseAuthorization();
 
     app.MapReverseProxy();
     app.MapSyncSupabaseUserEndpoint();
