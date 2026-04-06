@@ -11,7 +11,7 @@ public static class SyncExternalUserEndpoint
 {
     public static void MapSyncSupabaseUserEndpoint(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/webhooks/supabase/user-created", async (
+        app.MapPost("/api/webhooks/supabase/user-created", async (
             [FromBody] SupabaseAuthHookPayload payload,
             IdentityDbContext dbContext,
             IPublishEndpoint publishEndpoint,
