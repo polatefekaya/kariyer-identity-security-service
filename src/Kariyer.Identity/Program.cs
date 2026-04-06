@@ -36,6 +36,7 @@ try
             policy.WithOrigins(
                     "https://www.kariyerzamani.com",
                     "https://auth.kariyerzamani.com",
+                    "https://kz-auth.kariyerzamani.com",
                     "http://localhost:3000",
                     "http://localhost:5173",
                     "http://kariyerzamani.com",
