@@ -22,7 +22,7 @@ public static class SyncExternalUserEndpoint
                 payload.Metadata?.Name ?? "NULL", 
                 payload.User?.Id.ToString() ?? "NULL");
 
-            if (!string.Equals(payload.Metadata?.Name, "after-user-created", StringComparison.OrdinalIgnoreCase)) 
+            if (!string.Equals(payload.Metadata?.Name, "before-user-created", StringComparison.OrdinalIgnoreCase)) 
             {
                 logger.LogWarning("Webhook aborted. Ignoring hook '{Name}' to prevent ghost records.", payload.Metadata?.Name);
                 return Results.Json(new { }, contentType: "application/json");
