@@ -146,6 +146,9 @@ try
 
     string externalProviderUrl = builder.Configuration["ExternalProvider:Url"]
             ?? throw new ArgumentNullException("ExternalProvider:Url missing");
+            
+    string externalProviderJwt = builder.Configuration["ExternalProvider:JwtSecret"]
+            ?? throw new ArgumentNullException("ExternalProvider:JwtSecret missing");
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
@@ -173,6 +176,18 @@ try
                 }
             };
         });
+
+    Supabase.SupabaseOptions supabaseOptions = new()
+    {
+        AutoRefreshToken = false, 
+        AutoConnectRealtime = false
+    };
+    builder.Services.AddSingleton<Supabase.Client>(provider => 
+    {
+        Supabase.Client client = new(externalProviderUrl, externalProviderJwt, supabaseOptions);
+        client.InitializeAsync().GetAwaiter().GetResult(); 
+        return client;
+    });
 
     //builder.Services.AddAuthorization();
     
