@@ -90,7 +90,6 @@ public sealed class IncompleteAccountSweeperWorker : BackgroundService
             company.OnboardingReminderStep = 1;
         }
 
-        // Fetch companies that need Day 3 reminder
         List<LegacyCompany> companiesToRemindStep2 = await dbContext.Companies
             .Where(c => !c.IsAccountCompleted 
                      && c.OnboardingReminderStep == 1 

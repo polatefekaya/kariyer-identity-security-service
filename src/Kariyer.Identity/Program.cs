@@ -16,6 +16,7 @@ using Kariyer.Identity.Infrastructure.Gateway;
 using Kariyer.Identity.Features.Account.AccountDidNotCompleted;
 using StackExchange.Redis;
 using Kariyer.Identity.Features.Account.AccountOAuthCreated;
+using Kariyer.Identity.Infrastructure.Telemetry;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -58,18 +59,20 @@ try
         .WriteTo.Console());
 
     builder.Services.AddOpenTelemetry()
-        .ConfigureResource(resource => resource.AddService("Kariyer.Identity"))
-        .WithTracing(tracing => tracing
-            .AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation()
-            .AddNpgsql()
-            .AddSource("MassTransit")
-            .AddOtlpExporter())
-        .WithMetrics(metrics => metrics
-            .AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation()
-            .AddMeter("MassTransit")
-            .AddOtlpExporter());
+            .ConfigureResource(resource => resource.AddService(IdentityDiagnostics.ServiceName))
+            .WithTracing(tracing => tracing
+                .AddSource(IdentityDiagnostics.ServiceName)
+                .AddSource("MassTransit")
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddNpgsql()
+                .AddOtlpExporter())
+            .WithMetrics(metrics => metrics
+                .AddMeter(IdentityDiagnostics.ServiceName)
+                .AddMeter("MassTransit")
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddOtlpExporter());
 
     string dbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
         ?? throw new ArgumentNullException("DefaultConnection is missing");
