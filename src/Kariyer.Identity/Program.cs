@@ -84,6 +84,7 @@ try
     {
         busConfigurator.SetKebabCaseEndpointNameFormatter();
         busConfigurator.AddConsumer<SyncExternalUserConsumer>();
+        busConfigurator.AddConsumer<AccountOAuthCreatedConsumer>();
 
         busConfigurator.UsingRabbitMq((context, rabbitConfigurator) =>
         {
