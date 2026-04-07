@@ -39,7 +39,8 @@ try
                 "https://kz-auth.kariyerzamani.com",
                 "http://localhost:3000",
                 "http://localhost:5173",
-                "http://kariyerzamani.com",
+                "https://kariyerzamani.com",
+                "https://kz-admin.kariyerzamani.com",
                 "https://admin.kariyerzamani.com",
                 "https://tst.kariyerzamani.com"
             )
