@@ -130,9 +130,15 @@ try
                 endpointConfigurator.ConfigureConsumeTopology = false;
             
                 endpointConfigurator.UseMessageRetry(retryConfigurator => 
-                {
-                    retryConfigurator.Interval(3, TimeSpan.FromSeconds(5));
-                });
+                    {
+                        retryConfigurator.Handle<Supabase.Gotrue.Exceptions.GotrueException>();
+                        
+                        retryConfigurator.Exponential(
+                            retryLimit: 5, 
+                            minInterval: TimeSpan.FromSeconds(1), 
+                            maxInterval: TimeSpan.FromSeconds(15), 
+                            intervalDelta: TimeSpan.FromSeconds(2));
+                    });
             
                 endpointConfigurator.Bind("identity.account.oauth-created", bindConfigurator =>
                 {
