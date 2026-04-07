@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Kariyer.Identity.Domain.Entities;
-using Kariyer.Identity.Features.Account.AccountOAuthCreated;
 using Kariyer.Identity.Infrastructure.Persistence;
 using Kariyer.Identity.Infrastructure.Telemetry;
 using MassTransit;
@@ -234,19 +233,10 @@ public static class SyncExternalUserEndpoint
                         PhoneNumber = phoneNumber,
                         AvatarUrl = avatarUrl
                     };
-
-                    AccountOAuthCreatedEvent oauthEvent = new()
-                    {
-                        UserId = externalId,
-                        Provider = provider ?? "unknown",
-                        AccountType = accountType
-                    };
                     
                     logger.LogInformation("Integration Event publishing to RabbitMQ for External ID: {Id}", externalId);
                     await publishEndpoint.Publish(integrationEvent, cancellationToken);
                     
-                    logger.LogInformation("Publishing AccountOAuthCreatedEvent to RabbitMQ for External ID: {Id}", externalId);
-                    await publishEndpoint.Publish(oauthEvent, cancellationToken);
                 }
                 else if (activity?.GetTagItem("transaction.outcome") == null)
                 {
