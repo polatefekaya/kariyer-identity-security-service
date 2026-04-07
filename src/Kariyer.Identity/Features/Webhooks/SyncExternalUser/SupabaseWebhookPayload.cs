@@ -14,7 +14,13 @@ public record AuthHookMetadata(
 public record SupabaseAuthUser(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("email")] string? Email,
+    [property: JsonPropertyName("app_metadata")] SupabaseAppMetadata? AppMetadata,
     [property: JsonPropertyName("user_metadata")] SupabaseUserMetadata? UserMetadata
+);
+
+public record SupabaseAppMetadata(
+    [property: JsonPropertyName("provider")] string? Provider,
+    [property: JsonPropertyName("providers")] string[]? Providers
 );
 
 public record SupabaseUserMetadata(
@@ -30,6 +36,7 @@ public record SupabaseUserMetadata(
 [JsonSerializable(typeof(SupabaseAuthHookPayload))]
 [JsonSerializable(typeof(AuthHookMetadata))]
 [JsonSerializable(typeof(SupabaseAuthUser))]
+[JsonSerializable(typeof(SupabaseAppMetadata))]
 [JsonSerializable(typeof(SupabaseUserMetadata))]
 public partial class WebhookJsonContext : JsonSerializerContext
 {

@@ -1,4 +1,5 @@
 using Kariyer.Identity.Domain.Entities;
+using Kariyer.Identity.Features.Account.AccountOAuthCreated;
 using Kariyer.Identity.Infrastructure.Persistence;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
@@ -37,10 +38,19 @@ public static class SyncExternalUserEndpoint
             Guid externalId = payload.User.Id;
             string email = payload.User.Email ?? string.Empty;
             
+            string? provider = payload.User.AppMetadata?.Provider;
             string? accountType = payload.User.UserMetadata?.AccountType;
+
+            if (string.Equals(provider, "google", StringComparison.OrdinalIgnoreCase) || 
+                string.Equals(provider, "apple", StringComparison.OrdinalIgnoreCase))
+            {
+                accountType = "employee";
+                logger.LogInformation("OAuth provider '{Provider}' detected. Hardcoding account_type to 'employee' for User ID: {Id}", provider, externalId);
+            }
+
             if (string.IsNullOrWhiteSpace(accountType))
             {
-                logger.LogError("FATAL: Webhook payload is missing 'account_type' in UserMetadata. Aborting sync for User ID: {Id}", externalId);
+                logger.LogError("FATAL: Webhook payload is missing 'account_type' in UserMetadata and Provider is '{Provider}'. Aborting sync for User ID: {Id}", provider ?? "unknown", externalId);
                 return Results.BadRequest("Missing account_type. Cannot determine identity routing.");
             }
 
@@ -50,7 +60,7 @@ public static class SyncExternalUserEndpoint
 
             if (string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName) && !string.IsNullOrWhiteSpace(fullName))
             {
-                var nameParts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string[] nameParts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (nameParts.Length > 1)
                 {
                     lastName = nameParts.Last();
@@ -165,9 +175,18 @@ public static class SyncExternalUserEndpoint
                         AvatarUrl = avatarUrl
                     };
 
-                    logger.LogInformation("Integration Event publishing to RabbitMQ for External ID: {Id}", externalId);
+                    AccountOAuthCreatedEvent oauthEvent = new()
+                    {
+                        UserId = externalId,
+                        Provider = provider ?? "unknown",
+                        AccountType = accountType
+                    };
                     
+                    logger.LogInformation("Integration Event publishing to RabbitMQ for External ID: {Id}", externalId);
+                    logger.LogInformation("Publishing AccountOAuthCreatedEvent to RabbitMQ for External ID: {Id}", externalId);
+
                     await publishEndpoint.Publish(integrationEvent, cancellationToken);
+                    await publishEndpoint.Publish(oauthEvent, cancellationToken);
 
                     await dbContext.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);

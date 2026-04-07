@@ -15,6 +15,7 @@ using Kariyer.Identity.Features.Webhooks.SyncExternalUser;
 using Kariyer.Identity.Infrastructure.Gateway;
 using Kariyer.Identity.Features.Account.AccountDidNotCompleted;
 using StackExchange.Redis;
+using Kariyer.Identity.Features.Account.AccountOAuthCreated;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -95,24 +96,46 @@ try
 
             rabbitConfigurator.Message<ExternalUserCreatedEvent>(topology =>
             {
-                topology.SetEntityName("identity.external.created");
+                topology.SetEntityName("identity.account.created");
             });
-            
+
             rabbitConfigurator.Message<AccountDidNotCompletedEvent>(topology =>
             {
                 topology.SetEntityName("identity.account.not-completed");
             });
             
+            rabbitConfigurator.Message<AccountOAuthCreatedEvent>(topology =>
+            {
+                topology.SetEntityName("identity.account.oauth-created");
+            });
+
             rabbitConfigurator.ReceiveEndpoint("external-user-created-queue", endpointConfigurator =>
             {
                 endpointConfigurator.ConfigureConsumeTopology = false;
 
-                endpointConfigurator.Bind("identity.external.created", bindConfigurator =>
+                endpointConfigurator.Bind("identity.account.created", bindConfigurator =>
                 {
                     bindConfigurator.ExchangeType = "fanout";
                 });
 
                 endpointConfigurator.ConfigureConsumer<SyncExternalUserConsumer>(context);
+            });
+            
+            rabbitConfigurator.ReceiveEndpoint("account-oauth-created-queue", endpointConfigurator =>
+            {
+                endpointConfigurator.ConfigureConsumeTopology = false;
+            
+                endpointConfigurator.UseMessageRetry(retryConfigurator => 
+                {
+                    retryConfigurator.Interval(3, TimeSpan.FromSeconds(5));
+                });
+            
+                endpointConfigurator.Bind("identity.account.oauth-created", bindConfigurator =>
+                {
+                    bindConfigurator.ExchangeType = "fanout";
+                });
+            
+                endpointConfigurator.ConfigureConsumer<AccountOAuthCreatedConsumer>(context);
             });
         });
     });
