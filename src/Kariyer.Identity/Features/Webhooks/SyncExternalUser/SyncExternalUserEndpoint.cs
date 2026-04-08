@@ -59,8 +59,10 @@ public static class SyncExternalUserEndpoint
             activity?.SetTag("user.email", email);
             activity?.SetTag("oauth.provider", provider ?? "none");
 
-            if (string.Equals(provider, "google", StringComparison.OrdinalIgnoreCase) || 
-                string.Equals(provider, "apple", StringComparison.OrdinalIgnoreCase))
+            bool isOAuth = string.Equals(provider, "google", StringComparison.OrdinalIgnoreCase) || 
+                           string.Equals(provider, "apple", StringComparison.OrdinalIgnoreCase);
+
+            if (isOAuth)
             {
                 accountType = "employee";
                 logger.LogInformation("OAuth provider '{Provider}' detected. Hardcoding account_type to 'employee' for User ID: {Id}", provider, externalId);
@@ -210,12 +212,13 @@ public static class SyncExternalUserEndpoint
                     catch (DbUpdateException dbEx) when (dbEx.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
                     {
                         await transaction.RollbackAsync(cancellationToken);
-                        isNewRecord = false; 
                         
-                        logger.LogWarning("Idempotency catch: Concurrent insert detected for User ID {Id}. Ignoring duplicate and returning success.", externalId);
+                        logger.LogError("RACE CONDITION CAUGHT: Thread tried to insert User {Id} but the email is already locked by a concurrent process. Rejecting webhook.", externalId);
                         
-                        activity?.SetTag("transaction.outcome", "concurrent_duplicate_dropped");
-                        activity?.AddEvent(new ActivityEvent("Idempotency Catch Triggered"));
+                        activity?.SetTag("transaction.outcome", "concurrent_duplicate_rejected");
+                        activity?.AddEvent(new ActivityEvent("Idempotency Conflict Triggered"));
+                        
+                        throw new InvalidOperationException("Concurrent signup collision. Ghost record aborted.");
                     }
                 });
 
@@ -236,7 +239,6 @@ public static class SyncExternalUserEndpoint
                     
                     logger.LogInformation("Integration Event publishing to RabbitMQ for External ID: {Id}", externalId);
                     await publishEndpoint.Publish(integrationEvent, cancellationToken);
-                    
                 }
                 else if (activity?.GetTagItem("transaction.outcome") == null)
                 {
@@ -246,7 +248,18 @@ public static class SyncExternalUserEndpoint
                 activity?.SetStatus(ActivityStatusCode.Ok);
                 IdentityDiagnostics.WebhookProcessedCounter.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
 
-                return Results.Json(new { }, contentType: "application/json");
+                var responsePayload = new
+                {
+                    user_metadata = new Dictionary<string, string>
+                    {
+                        { "account_type", accountType },
+                        { "first_name", firstName },
+                        { "last_name", lastName },
+                        { "full_name", string.IsNullOrWhiteSpace(fullName) ? $"{firstName} {lastName}".Trim() : fullName }
+                    }
+                };
+
+                return Results.Json(responsePayload, contentType: "application/json");
             }
             catch (Exception ex)
             {
@@ -256,7 +269,7 @@ public static class SyncExternalUserEndpoint
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 IdentityDiagnostics.WebhookProcessedCounter.Add(1, new KeyValuePair<string, object?>("outcome", "system_failure"));
                 
-                return Results.StatusCode(500); 
+                return Results.StatusCode(StatusCodes.Status500InternalServerError); 
             }
         }).AddEndpointFilter<SupabaseSignatureFilter>();
     }
