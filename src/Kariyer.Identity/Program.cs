@@ -85,8 +85,6 @@ try
     builder.Services.AddMassTransit(busConfigurator =>
     {
         busConfigurator.SetKebabCaseEndpointNameFormatter();
-        busConfigurator.AddConsumer<SyncExternalUserConsumer>();
-
         busConfigurator.UsingRabbitMq((context, rabbitConfigurator) =>
         {
             string rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
@@ -104,18 +102,6 @@ try
             rabbitConfigurator.Message<AccountDidNotCompletedEvent>(topology =>
             {
                 topology.SetEntityName("identity.account.not-completed");
-            });
-
-            rabbitConfigurator.ReceiveEndpoint("external-user-created-queue", endpointConfigurator =>
-            {
-                endpointConfigurator.ConfigureConsumeTopology = false;
-
-                endpointConfigurator.Bind("identity.account.created", bindConfigurator =>
-                {
-                    bindConfigurator.ExchangeType = "fanout";
-                });
-
-                endpointConfigurator.ConfigureConsumer<SyncExternalUserConsumer>(context);
             });
             
         });

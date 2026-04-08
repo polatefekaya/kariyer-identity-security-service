@@ -15,74 +15,70 @@ public static class SyncExternalUserEndpoint
     public static void MapSyncSupabaseUserEndpoint(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/webhooks/supabase/user-created", async (
-            [FromBody] SupabaseAuthHookPayload payload,
+            [FromBody] DatabaseWebhookPayload payload,
             IdentityDbContext dbContext,
             IPublishEndpoint publishEndpoint,
-            ILogger<SupabaseSignatureFilter> logger,
+            ILogger<SupabaseDatabaseWebhookFilter> logger,
             CancellationToken cancellationToken) =>
         {
-            using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("Supabase.Webhook.UserCreated");
+            using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("Supabase.DatabaseWebhook.UserCreated");
             
-            string hookName = payload.Metadata?.Name ?? "unknown";
-            string rawUserId = payload.User?.Id.ToString() ?? "unknown";
+            string eventType = payload.Type ?? "unknown";
+            string tableName = payload.Table ?? "unknown";
             
-            activity?.SetTag("webhook.name", hookName);
-            activity?.SetTag("user.id", rawUserId);
+            activity?.SetTag("webhook.type", eventType);
+            activity?.SetTag("webhook.table", tableName);
 
-            logger.LogInformation("Webhook received. Hook Name: '{Name}', User ID: '{Id}'", hookName, rawUserId);
+            logger.LogInformation("Database Webhook received. Type: '{Type}', Table: '{Table}'", eventType, tableName);
 
-            if (!string.Equals(hookName, "before-user-created", StringComparison.OrdinalIgnoreCase)) 
+            if (!string.Equals(eventType, "INSERT", StringComparison.OrdinalIgnoreCase) || 
+                !string.Equals(tableName, "users", StringComparison.OrdinalIgnoreCase)) 
             {
-                logger.LogWarning("Webhook aborted. Ignoring hook '{Name}' to prevent ghost records.", hookName);
+                logger.LogWarning("Webhook aborted. Ignoring event '{Type}' on table '{Table}' to prevent processing errors.", eventType, tableName);
                 
-                activity?.SetStatus(ActivityStatusCode.Ok, "Ignored hook type");
-                IdentityDiagnostics.WebhookProcessedCounter.Add(1, new KeyValuePair<string, object?>("outcome", "ignored_hook_type"));
+                activity?.SetStatus(ActivityStatusCode.Ok, "Ignored event type or table");
+                IdentityDiagnostics.WebhookProcessedCounter.Add(1, new KeyValuePair<string, object?>("outcome", "ignored_event_type"));
                 
-                return Results.Json(new { }, contentType: "application/json");
+                return Results.Ok();
             }
 
-            if (payload.User == null)
+            if (payload.Record == null)
             {
-                logger.LogError("Webhook payload contained no User data.");
+                logger.LogError("Webhook payload contained no Record data.");
                 
-                activity?.SetStatus(ActivityStatusCode.Error, "Missing User data");
+                activity?.SetStatus(ActivityStatusCode.Error, "Missing Record data");
                 IdentityDiagnostics.WebhookProcessedCounter.Add(1, new KeyValuePair<string, object?>("outcome", "bad_request"));
                 
-                return Results.BadRequest("Missing User data.");
+                return Results.BadRequest("Missing Record data.");
             }
 
-            Guid externalId = payload.User.Id;
-            string email = payload.User.Email ?? string.Empty;
-            string? provider = payload.User.AppMetadata?.Provider;
-            string? accountType = payload.User.UserMetadata?.AccountType;
-
+            Guid externalId = payload.Record.Id;
+            string email = payload.Record.Email ?? string.Empty;
+            
+            activity?.SetTag("user.id", externalId.ToString());
             activity?.SetTag("user.email", email);
-            activity?.SetTag("oauth.provider", provider ?? "none");
 
-            bool isOAuth = string.Equals(provider, "google", StringComparison.OrdinalIgnoreCase) || 
-                           string.Equals(provider, "apple", StringComparison.OrdinalIgnoreCase);
+            string provider = payload.Record.AppMetadata?.Provider ?? "email";
+            activity?.SetTag("oauth.provider", provider);
 
-            if (isOAuth)
-            {
-                accountType = "employee";
-                logger.LogInformation("OAuth provider '{Provider}' detected. Hardcoding account_type to 'employee' for User ID: {Id}", provider, externalId);
-            }
+            string accountType = payload.Record.UserMetadata?.AccountType ?? string.Empty;
+            string firstName = payload.Record.UserMetadata?.FirstName ?? string.Empty;
+            string lastName = payload.Record.UserMetadata?.LastName ?? string.Empty;
+            string fullName = payload.Record.UserMetadata?.FullName ?? payload.Record.UserMetadata?.Name ?? string.Empty;
+            string phoneNumber = payload.Record.UserMetadata?.PhoneNumber ?? string.Empty;
+            string avatarUrl = payload.Record.UserMetadata?.AvatarUrl ?? string.Empty;
 
-            activity?.SetTag("oauth.account_type", accountType ?? "none");
+            activity?.SetTag("oauth.account_type", string.IsNullOrWhiteSpace(accountType) ? "none" : accountType);
 
             if (string.IsNullOrWhiteSpace(accountType))
             {
-                logger.LogError("FATAL: Webhook payload is missing 'account_type' in UserMetadata and Provider is '{Provider}'. Aborting sync for User ID: {Id}", provider ?? "unknown", externalId);
+                logger.LogError("FATAL: Database webhook payload is missing 'account_type' for User ID: {Id}. Provider: '{Provider}'.", externalId, provider);
                 
                 activity?.SetStatus(ActivityStatusCode.Error, "Missing account_type");
                 IdentityDiagnostics.WebhookProcessedCounter.Add(1, new KeyValuePair<string, object?>("outcome", "missing_account_type"));
                 
                 return Results.BadRequest("Missing account_type. Cannot determine identity routing.");
             }
-
-            string firstName = payload.User.UserMetadata?.FirstName ?? string.Empty;
-            string lastName = payload.User.UserMetadata?.LastName ?? string.Empty;
-            string? fullName = payload.User.UserMetadata?.FullName ?? payload.User.UserMetadata?.Name;
 
             if (string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName) && !string.IsNullOrWhiteSpace(fullName))
             {
@@ -97,9 +93,6 @@ public static class SyncExternalUserEndpoint
                     firstName = fullName;
                 }
             }
-
-            string phoneNumber = payload.User.UserMetadata?.PhoneNumber ?? string.Empty;
-            string avatarUrl = payload.User.UserMetadata?.AvatarUrl ?? string.Empty;
 
             bool isCompany = string.Equals(accountType, "company", StringComparison.OrdinalIgnoreCase) || 
                              string.Equals(accountType, "employer", StringComparison.OrdinalIgnoreCase) || 
@@ -248,22 +241,11 @@ public static class SyncExternalUserEndpoint
                 activity?.SetStatus(ActivityStatusCode.Ok);
                 IdentityDiagnostics.WebhookProcessedCounter.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
 
-                var responsePayload = new
-                {
-                    user_metadata = new Dictionary<string, string>
-                    {
-                        { "account_type", accountType },
-                        { "first_name", firstName },
-                        { "last_name", lastName },
-                        { "full_name", string.IsNullOrWhiteSpace(fullName) ? $"{firstName} {lastName}".Trim() : fullName }
-                    }
-                };
-
-                return Results.Json(responsePayload, contentType: "application/json");
+                return Results.Ok();
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "FATAL: Unhandled database or system failure for External ID: {Id}. Rejecting Supabase signup.", externalId);
+                logger.LogError(ex, "FATAL: Unhandled database or system failure for External ID: {Id}.", externalId);
                 
                 activity?.AddException(ex);
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
@@ -271,6 +253,6 @@ public static class SyncExternalUserEndpoint
                 
                 return Results.StatusCode(StatusCodes.Status500InternalServerError); 
             }
-        }).AddEndpointFilter<SupabaseSignatureFilter>();
+        }).AddEndpointFilter<SupabaseDatabaseWebhookFilter>();
     }
 }
