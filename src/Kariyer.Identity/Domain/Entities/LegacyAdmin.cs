@@ -55,7 +55,7 @@ public class LegacyAdmin
     {
         return new LegacyAdmin
         {
-            Uid = $"{Guid.NewGuid()}-admin", 
+            Uid = $"{Guid.NewGuid()}-admin",
             ExternalId = externalId,
             Email = email,
             Phone = phone,
@@ -71,7 +71,21 @@ public class LegacyAdmin
             CreatedDate = DateTime.UtcNow
         };
     }
+    
+    public void CompleteAccount(){
+        IsAccountCompleted = true;
+    }
+    
+    public void UpdateRole(string newRole)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newRole, "AdminRole");
+        AdminRole = newRole;
+    }
 
+    public void UpdateIsActive(bool isActive){
+        IsActive = isActive;
+    }
+    
     public void LinkExternalAccount(Guid externalId)
     {
         ExternalId = externalId;

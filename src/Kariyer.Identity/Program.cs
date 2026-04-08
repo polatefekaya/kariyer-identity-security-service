@@ -16,6 +16,8 @@ using Kariyer.Identity.Infrastructure.Gateway;
 using Kariyer.Identity.Features.Account.AccountDidNotCompleted;
 using StackExchange.Redis;
 using Kariyer.Identity.Infrastructure.Telemetry;
+using Kariyer.Identity.Infrastructure.Auth;
+using System.Text.Json;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -113,44 +115,21 @@ try
     string externalProviderJwt = builder.Configuration["ExternalProvider:JwtSecret"]
             ?? throw new ArgumentNullException("ExternalProvider:JwtSecret missing");
 
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(options =>
-        {
-            options.MapInboundClaims = false;
-            options.Authority = $"{externalProviderUrl}/auth/v1";
-
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidIssuer = $"{externalProviderUrl}/auth/v1",
-                ValidateAudience = true,
-                ValidAudience = "authenticated",
-                ValidateLifetime = true,
-
-                ClockSkew = TimeSpan.Zero
-            };
-
-            options.Events = new JwtBearerEvents
-            {
-                OnAuthenticationFailed = context =>
-                {
-                    Log.Warning("JWT Validation Failed: {Message}", context.Exception.Message);
-                    return Task.CompletedTask;
-                }
-            };
-        });
+    builder.Services.AddSupabaseJwtAuthentication(builder.Configuration, (Microsoft.Extensions.Logging.ILogger)Log.Logger);
 
     Supabase.SupabaseOptions supabaseOptions = new()
     {
         AutoRefreshToken = false, 
         AutoConnectRealtime = false
     };
-    builder.Services.AddSingleton<Supabase.Client>(provider => 
+    builder.Services.AddSingleton<Supabase.Client>(provider =>
     {
         Supabase.Client client = new(externalProviderUrl, externalProviderJwt, supabaseOptions);
-        client.InitializeAsync().GetAwaiter().GetResult(); 
+        client.InitializeAsync().GetAwaiter().GetResult();
         return client;
     });
+    
+    builder.Services.AddScoped<ISupabaseAdminAuthService, SupabaseAdminAuthService>();
 
     //builder.Services.AddAuthorization();
     
@@ -178,7 +157,7 @@ try
     app.UseRouting();
     app.UseCors("StrictFrontendPolicy");
     app.UseAuthentication();
-    //app.UseAuthorization();
+    app.UseAuthorization();
 
     app.MapReverseProxy();
     app.MapSyncSupabaseUserEndpoint();
