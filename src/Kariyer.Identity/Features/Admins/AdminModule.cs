@@ -1,3 +1,4 @@
+using Kariyer.Identity.Features.Admins.BootstrapAdmin;
 using Kariyer.Identity.Features.Admins.CreateAdmin;
 using Kariyer.Identity.Features.Admins.DeleteAdmin;
 using Kariyer.Identity.Features.Admins.GetAdmin;
@@ -17,12 +18,15 @@ public static class AdminModule
         services.AddScoped<IUpdateAdminRoleService, UpdateAdminRoleService>();
         services.AddScoped<IUpdateAdminStatusService, UpdateAdminStatusService>();
         services.AddScoped<IDeleteAdminService, DeleteAdminService>();
+        services.AddScoped<IBootstrapAdminService, BootstrapAdminService>();
 
         return services;
     }
 
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapBootstrapAdmin();
+        
         RouteGroupBuilder adminGroup = app.MapGroup("/api/admins")
             .RequireAuthorization("RequireAdmin");
 
