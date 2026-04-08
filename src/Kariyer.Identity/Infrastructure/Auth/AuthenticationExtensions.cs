@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using ILogger = Serilog.ILogger;
 
 namespace Kariyer.Identity.Infrastructure.Auth;
 
@@ -39,7 +40,7 @@ public static class AuthenticationExtensions
                 {
                     OnAuthenticationFailed = context =>
                     {
-                        logger.LogWarning("JWT Validation Failed: {Message}", context.Exception.Message);
+                        logger.Warning("JWT Validation Failed: {Message}", context.Exception.Message);
                         return Task.CompletedTask;
                     },
                     OnTokenValidated = context =>

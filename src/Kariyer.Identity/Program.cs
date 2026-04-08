@@ -115,7 +115,7 @@ try
     string externalProviderJwt = builder.Configuration["ExternalProvider:JwtSecret"]
             ?? throw new ArgumentNullException("ExternalProvider:JwtSecret missing");
 
-    builder.Services.AddSupabaseJwtAuthentication(builder.Configuration, (Microsoft.Extensions.Logging.ILogger)Log.Logger);
+    builder.Services.AddSupabaseJwtAuthentication(builder.Configuration, Log.Logger);
 
     Supabase.SupabaseOptions supabaseOptions = new()
     {
