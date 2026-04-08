@@ -18,6 +18,7 @@ using StackExchange.Redis;
 using Kariyer.Identity.Infrastructure.Telemetry;
 using Kariyer.Identity.Infrastructure.Auth;
 using System.Text.Json;
+using Kariyer.Identity.Features.Admins;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -116,7 +117,8 @@ try
             ?? throw new ArgumentNullException("ExternalProvider:JwtSecret missing");
 
     builder.Services.AddSupabaseJwtAuthentication(builder.Configuration, Log.Logger);
-
+    builder.Services.AddAdminFeature();
+    
     Supabase.SupabaseOptions supabaseOptions = new()
     {
         AutoRefreshToken = false, 
@@ -161,6 +163,7 @@ try
 
     app.MapReverseProxy();
     app.MapSyncSupabaseUserEndpoint();
+    app.MapAdminEndpoints();
 
     app.Run();
 }
