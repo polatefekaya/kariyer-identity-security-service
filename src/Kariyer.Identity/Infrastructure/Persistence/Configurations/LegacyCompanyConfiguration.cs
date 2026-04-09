@@ -33,6 +33,9 @@ public class LegacyCompanyConfiguration : IEntityTypeConfiguration<LegacyCompany
                .HasDefaultValue(0)
                .IsRequired();
 
+        builder.Property(c => c.Status)
+                .HasColumnName("status");
+
         builder.Property(c => c.Followers).HasColumnName("followers").HasColumnType("text[]");
         builder.Property(c => c.SubCompanies).HasColumnName("sub_companies").HasColumnType("text[]");
         builder.Property(c => c.ParentCompanies).HasColumnName("parent_companies").HasColumnType("text[]");

@@ -12,6 +12,7 @@ public class LegacyCompany
     public string AuthorizedSurname { get; private set; } = string.Empty;
     public string Username { get; private set; } = string.Empty;
     public string Password { get; private set; } = string.Empty;
+    public string Status { get; private set; } = string.Empty;
     
     // Arrays required by legacy code
     public List<string> Followers { get; private set; } = [];
@@ -47,6 +48,7 @@ public class LegacyCompany
             CompanyName = $"{firstName} {lastName} Şirketi",
             AuthorizedName = firstName,
             AuthorizedSurname = lastName,
+            Status = "pending_approval",
             Username = $"{firstName.ToLower()}{lastName.ToLower()}{DateTimeOffset.UtcNow.Millisecond}",
             Password = string.Empty,
             CreatedDate = DateTimeOffset.UtcNow,
