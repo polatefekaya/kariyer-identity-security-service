@@ -50,6 +50,6 @@ public class LegacyEmployee
     public void LinkExternalAccount(Guid externalId)
     {
         ExternalId = externalId;
-        IsAccountCompleted = true;
+        //IsAccountCompleted = true; we shouldn't mark as completed because we still need to get some data out of oauth users.
     }
 }
