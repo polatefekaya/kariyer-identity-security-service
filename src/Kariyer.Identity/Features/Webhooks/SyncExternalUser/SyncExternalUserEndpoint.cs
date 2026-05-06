@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Kariyer.Identity.Domain.Entities;
 using Kariyer.Identity.Infrastructure.Persistence;
 using Kariyer.Identity.Infrastructure.Telemetry;
+using Kariyer.Messaging.Contracts.Account;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -219,7 +220,7 @@ public static class SyncExternalUserEndpoint
                 {
                     activity?.SetTag("transaction.outcome", "new_record_created");
 
-                    ExternalUserCreatedEvent integrationEvent = new()
+                    AccountCreatedEvent integrationEvent = new()
                     {
                         UserId = externalId,
                         Email = email,

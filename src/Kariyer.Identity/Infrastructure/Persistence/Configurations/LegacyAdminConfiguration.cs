@@ -8,7 +8,10 @@ public class LegacyAdminConfiguration : IEntityTypeConfiguration<LegacyAdmin>
 {
     public void Configure(EntityTypeBuilder<LegacyAdmin> builder)
     {
-        builder.ToTable("admin");
+        builder.ToTable("admin", tableBuilder => 
+        {
+            tableBuilder.ExcludeFromMigrations();
+        });
 
         builder.HasKey(a => a.Uid);
 

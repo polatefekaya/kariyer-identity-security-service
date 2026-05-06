@@ -2,37 +2,103 @@ namespace Kariyer.Identity.Domain.Entities;
 
 public class LegacyCompany
 {
-    public string Uid { get; private set; } = string.Empty;
-    public Guid? ExternalId { get; private set; }
-    public bool IsAccountCompleted { get; private set; }
-    public string Email { get; private set; } = string.Empty;
-    public string Phone { get; private set; } = string.Empty;
-    public string CompanyName { get; private set; } = string.Empty;
-    public string AuthorizedName { get; private set; } = string.Empty;
-    public string AuthorizedSurname { get; private set; } = string.Empty;
-    public string Username { get; private set; } = string.Empty;
-    public string Password { get; private set; } = string.Empty;
-    public string Status { get; private set; } = string.Empty;
+    public string Uid { get; set; } = string.Empty;
     
-    // Arrays required by legacy code
-    public List<string> Followers { get; private set; } = [];
-    public List<string> SubCompanies { get; private set; } = [];
-    public List<string> ParentCompanies { get; private set; } = [];
-    public List<string> AffiliatedCompanies { get; private set; } = [];
-    public List<string> PendingSentRequests { get; private set; } = [];
-    public List<string> PendingReceivedRequests { get; private set; } = [];
-    public List<string> Employees { get; private set; } = [];
-    public List<string> ApprovedEmployees { get; private set; } = [];
-    public List<string> RejectedEmployees { get; private set; } = [];
-    public List<string> DeletedEmployees { get; private set; } = [];
-    public List<string> Jwt { get; private set; } = [];
-    public List<string> Plan { get; private set; } = [];
-    public List<string> Tags { get; private set; } = [];
-    public List<int> SeenCv { get; private set; } = [];
-    public List<int> DownloadedCv { get; private set; } = [];
-    public List<string> Notifications { get; private set; } = [];
-    public DateTimeOffset CreatedDate { get; private set; }
-    public int OnboardingReminderStep { get; internal set; }
+    public Guid? ExternalId { get; set; }
+    public bool IsAccountCompleted { get; set; }
+    
+    public string Email { get; set; } = string.Empty;
+    
+    public string? Status { get; set; }
+    public string? Username { get; set; }
+    public string? CompanyName { get; set; }
+    public string? AuthorizedName { get; set; }
+    public string? AuthorizedSurname { get; set; }
+    public string? Phone { get; set; }
+    public string? Country { get; set; }
+    public string? Province { get; set; }
+    public string? Town { get; set; }
+    public string? Neighbourhood { get; set; }
+    public string? Location { get; set; }
+    public string? TaxOfficeProvince { get; set; }
+    public string? TaxOffice { get; set; }
+    public string? TaxIdNumber { get; set; }
+    public string? Password { get; set; }
+    public string? MailDomain { get; set; }
+    public string? FoundedYear { get; set; }
+    public string? CompanyWebsite { get; set; }
+    public string? Industry { get; set; }
+    public string? CompanyDesc { get; set; }
+    public string? PhotoUrl { get; set; }
+    public string? BackgroundUrl { get; set; }
+    public string? TaxCertificateUrl { get; set; }
+    public string? EmployeeCount { get; set; }
+    
+    // Booleans (allowNull: false)
+    public bool IsCivilian { get; set; }
+    public bool EmploymentOffice { get; set; }
+    public bool IsDeleted { get; set; }
+    public bool PermaDeleted { get; set; }
+    public bool EmailVerified { get; set; }
+    public bool PhoneVerified { get; set; }
+
+    // Integers (allowNull: false)
+    public int OnboardingReminderStep { get; set; }
+    public int PriorityScore { get; set; }
+    public int PasswordResetCount { get; set; }
+
+    // Arrays (allowNull: false, defaultValue: [])
+    // Npgsql natively maps PostgreSQL TEXT[] to List<string>
+    public List<string> Followers { get; set; } = [];
+    public List<string> SubCompanies { get; set; } = [];
+    public List<string> ParentCompanies { get; set; } = [];
+    public List<string> AffiliatedCompanies { get; set; } = [];
+    public List<string> PendingSentRequests { get; set; } = [];
+    public List<string> PendingReceivedRequests { get; set; } = [];
+    public List<string> Employees { get; set; } = [];
+    public List<string> ApprovedEmployees { get; set; } = [];
+    public List<string> RejectedEmployees { get; set; } = [];
+    public List<string> DeletedEmployees { get; set; } = [];
+    public List<string> Jwt { get; set; } = [];
+    public List<string> Plan { get; set; } = [];
+    public List<string> Tags { get; set; } = [];
+    public List<string> Notifications { get; set; } = [];
+    public List<int> SeenCv { get; set; } = [];
+    public List<int> DownloadedCv { get; set; } = [];
+
+    // Hashes & Socials (allowNull: true)
+    public string? TaxIdNumberHash { get; set; }
+    public string? EmailHash { get; set; }
+    public string? PhoneHash { get; set; }
+    public string? PasswordHash { get; set; }
+    public string? Instagram { get; set; }
+    public string? InstagramUrl { get; set; }
+    public string? Linkedin { get; set; }
+    public string? LinkedinUrl { get; set; }
+    public string? Twitter { get; set; }
+    public string? TwitterUrl { get; set; }
+
+    // Dates & Extras (allowNull: true)
+    public string? VerificationCode { get; set; }
+    public DateTimeOffset? VerificationCodeExpiresAt { get; set; }
+    public DateTimeOffset? PasswordResetLastAttempt { get; set; }
+    public DateTimeOffset? PasswordResetBlockedUntil { get; set; }
+    public DateTimeOffset? EmailUpdate { get; set; }
+    public DateTimeOffset? PhoneUpdate { get; set; }
+    public DateTimeOffset? UsernameUpdate { get; set; }
+    public DateTimeOffset? DeletedDate { get; set; }
+    public string? DeletedBy { get; set; }
+    public DateTimeOffset? DeletionRequestedAt { get; set; }
+    public string? OnesignalPlayerId { get; set; }
+    public string? ApprovedBy { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public string? RejectedBy { get; set; }
+    public DateTimeOffset? RejectedAt { get; set; }
+    public string? RejectionReason { get; set; }
+    
+    public string Approved { get; set; } = "registered";
+    
+    public DateTimeOffset CreatedDate { get; set; }
 
     protected LegacyCompany() { }
 
@@ -59,6 +125,6 @@ public class LegacyCompany
     public void LinkExternalAccount(Guid externalId)
     {
         ExternalId = externalId;
-        IsAccountCompleted = true;
+        IsAccountCompleted = false;
     }
 }

@@ -1,5 +1,6 @@
 using System.Reflection;
 using Kariyer.Identity.Domain.Entities;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kariyer.Identity.Infrastructure.Persistence;
@@ -15,7 +16,11 @@ public class IdentityDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
-                
+
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.AddInboxStateEntity(b => b.ToTable("inbox_state", "identity"));
+        modelBuilder.AddOutboxMessageEntity(b => b.ToTable("outbox_message", "identity"));
+        modelBuilder.AddOutboxStateEntity(b => b.ToTable("outbox_state", "identity"));
     }
 }

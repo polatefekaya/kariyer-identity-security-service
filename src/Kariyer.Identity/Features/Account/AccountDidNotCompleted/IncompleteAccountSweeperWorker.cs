@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MassTransit;
 using Kariyer.Identity.Infrastructure.Persistence;
 using Kariyer.Identity.Domain.Entities;
+using Kariyer.Messaging.Contracts.Account;
 
 namespace Kariyer.Identity.Features.Account.AccountDidNotCompleted;
 
@@ -62,59 +63,75 @@ public sealed class IncompleteAccountSweeperWorker : BackgroundService
         IdentityDbContext dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         IPublishEndpoint publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
-        DateTime now = DateTime.UtcNow;
-        DateTime day1Threshold = now.AddDays(-1);
-        DateTime day3Threshold = now.AddDays(-3);
+        bool hasMoreBacklog;
 
-        List<LegacyCompany> companiesToRemindStep1 = await dbContext.Companies
-            .Where(c => !c.IsAccountCompleted 
-                     && c.OnboardingReminderStep == 0 
-                     && c.CreatedDate <= day1Threshold)
-            .Take(500)
-            .ToListAsync(stoppingToken);
-
-        foreach (LegacyCompany company in companiesToRemindStep1)
+        do
         {
-            AccountDidNotCompletedEvent reminderEvent = new()
+            DateTime now = DateTime.UtcNow;
+            DateTime day1Threshold = now.AddDays(-1);
+            DateTime day3Threshold = now.AddDays(-3);
+
+            List<LegacyCompany> companiesToRemindStep1 = await dbContext.Companies
+                .Where(c => !c.IsAccountCompleted 
+                         && c.OnboardingReminderStep == 0 
+                         && c.CreatedDate <= day1Threshold)
+                .OrderBy(c => c.CreatedDate) 
+                .Take(500)
+                .ToListAsync(stoppingToken);
+
+            foreach (LegacyCompany company in companiesToRemindStep1)
             {
-                MessageId = Guid.NewGuid().ToString(),
-                Uid = company.Uid,
-                Email = company.Email,
-                FullName = company.CompanyName ?? company.Username,
-                AccountType = "company",
-                ReminderStep = 1
-            };
+                AccountDidNotCompletedEvent reminderEvent = new()
+                {
+                    MessageId = Guid.NewGuid().ToString(),
+                    Uid = company.Uid,
+                    Email = company.Email,
+                    FullName = company.CompanyName ?? company.Username,
+                    AccountType = "company",
+                    ReminderStep = 1
+                };
 
-            await publishEndpoint.Publish(reminderEvent, stoppingToken);
+                // Because of the Outbox, this is now a lightning-fast memory operation, not a network call.
+                await publishEndpoint.Publish(reminderEvent, stoppingToken);
+                company.OnboardingReminderStep = 1;
+            }
 
-            company.OnboardingReminderStep = 1;
-        }
+            List<LegacyCompany> companiesToRemindStep2 = await dbContext.Companies
+                .Where(c => !c.IsAccountCompleted 
+                         && c.OnboardingReminderStep == 1 
+                         && c.CreatedDate <= day3Threshold)
+                .OrderBy(c => c.CreatedDate)
+                .Take(500)
+                .ToListAsync(stoppingToken);
 
-        List<LegacyCompany> companiesToRemindStep2 = await dbContext.Companies
-            .Where(c => !c.IsAccountCompleted 
-                     && c.OnboardingReminderStep == 1 
-                     && c.CreatedDate <= day3Threshold)
-            .Take(500)
-            .ToListAsync(stoppingToken);
-
-        foreach (LegacyCompany company in companiesToRemindStep2)
-        {
-            AccountDidNotCompletedEvent reminderEvent = new()
+            foreach (LegacyCompany company in companiesToRemindStep2)
             {
-                MessageId = Guid.NewGuid().ToString(),
-                Uid = company.Uid,
-                Email = company.Email,
-                FullName = company.CompanyName ?? company.Username,
-                AccountType = "company",
-                ReminderStep = 2
-            };
+                AccountDidNotCompletedEvent reminderEvent = new()
+                {
+                    MessageId = Guid.NewGuid().ToString(),
+                    Uid = company.Uid,
+                    Email = company.Email,
+                    FullName = company.CompanyName ?? company.Username,
+                    AccountType = "company",
+                    ReminderStep = 2
+                };
 
-            await publishEndpoint.Publish(reminderEvent, stoppingToken);
+                await publishEndpoint.Publish(reminderEvent, stoppingToken);
+                company.OnboardingReminderStep = 2;
+            }
 
-            company.OnboardingReminderStep = 2;
-        }
+            int totalProcessedInBatch = companiesToRemindStep1.Count + companiesToRemindStep2.Count;
 
-        await dbContext.SaveChangesAsync(stoppingToken);
-        _logger.LogInformation("Swept {Count} incomplete accounts.", companiesToRemindStep1.Count + companiesToRemindStep2.Count);
+            if (totalProcessedInBatch > 0)
+            {
+                // Atomic Commit: This saves entity changes AND outbox messages together. No more dual-write ghost messages.
+                await dbContext.SaveChangesAsync(stoppingToken);
+                _logger.LogInformation("Swept {Count} incomplete accounts in current batch.", totalProcessedInBatch);
+            }
+
+            // Do not sleep if the batch was completely full; keep processing until the backlog is zero.
+            hasMoreBacklog = companiesToRemindStep1.Count == 500 || companiesToRemindStep2.Count == 500;
+
+        } while (hasMoreBacklog && !stoppingToken.IsCancellationRequested);
     }
 }
