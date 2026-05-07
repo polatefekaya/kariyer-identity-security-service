@@ -177,6 +177,24 @@ try
 
     if (!isEfDesignMode)
     {
+        using IServiceScope scope = app.Services.CreateScope();
+        ILogger<Program> logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        try
+        {
+            logger.LogInformation("Attempting to apply Entity Framework migrations...");
+            IdentityDbContext dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            dbContext.Database.Migrate();
+            logger.LogInformation("Database migration completed successfully.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogCritical(ex, "CRITICAL: Database migration failed. The application will crash.");
+            throw;
+        }
+    }
+    
+    if (!isEfDesignMode)
+    {
         Supabase.Client supabaseClient = app.Services.GetRequiredService<Supabase.Client>();
         await supabaseClient.InitializeAsync();
     }
