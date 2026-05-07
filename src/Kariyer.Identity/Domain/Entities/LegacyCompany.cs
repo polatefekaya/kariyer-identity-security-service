@@ -42,6 +42,10 @@ public class LegacyCompany
     public bool EmailVerified { get; set; }
     public bool PhoneVerified { get; set; }
 
+    public bool CommercialConsentAccepted { get; set; }
+    public bool UserAgreementAccepted { get; set; }
+    public bool KvkkAccepted { get; set; }
+
     // Integers (allowNull: false)
     public int OnboardingReminderStep { get; set; }
     public int PriorityScore { get; set; }
@@ -102,7 +106,7 @@ public class LegacyCompany
 
     protected LegacyCompany() { }
 
-    public static LegacyCompany CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName)
+    public static LegacyCompany CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool userAgreementAccepted, bool kvkkAccepted, bool commercialConsentAccepted)
     {
         return new LegacyCompany
         {
@@ -118,7 +122,10 @@ public class LegacyCompany
             Username = $"{firstName.ToLower()}{lastName.ToLower()}{DateTimeOffset.UtcNow.Millisecond}",
             Password = string.Empty,
             CreatedDate = DateTimeOffset.UtcNow,
-            OnboardingReminderStep = 0
+            OnboardingReminderStep = 0,
+            UserAgreementAccepted = userAgreementAccepted,
+            KvkkAccepted = kvkkAccepted,
+            CommercialConsentAccepted = commercialConsentAccepted,
         };
     }
     

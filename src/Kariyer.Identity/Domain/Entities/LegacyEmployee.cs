@@ -54,6 +54,10 @@ public class LegacyEmployee
     public bool PhoneVerified { get; set; }
     public bool CompanyEmailVerified { get; set; }
 
+    public bool CommercialConsentAccepted { get; set; }
+    public bool UserAgreementAccepted { get; set; }
+    public bool KvkkAccepted { get; set; }
+
     // Hashes (allowNull: true)
     public string? EmailHash { get; set; }
     public string? NationalIdHash { get; set; }
@@ -80,7 +84,7 @@ public class LegacyEmployee
 
     protected LegacyEmployee() { }
 
-    public static LegacyEmployee CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName)
+    public static LegacyEmployee CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool userAgreementAccepted, bool kvkkAccepted, bool commercialConsentAccepted)
     {
         return new LegacyEmployee
         {
@@ -101,7 +105,10 @@ public class LegacyEmployee
             Following = [],
             Followers = [],
             Notifications = [],
-            Jwt = []
+            Jwt = [],
+            UserAgreementAccepted = userAgreementAccepted,
+            KvkkAccepted = kvkkAccepted,
+            CommercialConsentAccepted = commercialConsentAccepted,
         };
     }
     

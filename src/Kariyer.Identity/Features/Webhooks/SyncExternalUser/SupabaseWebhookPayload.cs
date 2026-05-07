@@ -29,7 +29,10 @@ public sealed record SupabaseUserMetadata(
     [property: JsonPropertyName("phone_number")] string? PhoneNumber,
     [property: JsonPropertyName("full_name")] string? FullName,
     [property: JsonPropertyName("name")] string? Name,
-    [property: JsonPropertyName("avatar_url")] string? AvatarUrl
+    [property: JsonPropertyName("avatar_url")] string? AvatarUrl,
+    [property: JsonPropertyName("kvkk_accepted")] bool KvkkAccepted,
+    [property: JsonPropertyName("user_agreement_accepted")] bool UserAgreementAccepted,
+    [property: JsonPropertyName("commercial_consent_accepted")] bool CommercialConsentAccepted
 );
 
 [JsonSerializable(typeof(DatabaseWebhookPayload))]
