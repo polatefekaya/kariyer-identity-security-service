@@ -28,6 +28,11 @@ public class LegacyEmployeeConfiguration : IEntityTypeConfiguration<LegacyEmploy
         builder.Property(e => e.PhoneVerified).HasColumnName("phone_verified").HasDefaultValue(false).IsRequired();
         builder.Property(e => e.CompanyEmailVerified).HasColumnName("company_email_verified").HasDefaultValue(false).IsRequired();
 
+        builder.Property(e => e.UserAgreementAccepted).HasColumnName("user_agreement_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(e => e.KvkkAccepted).HasColumnName("kvkk_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(e => e.CommercialConsentAccepted).HasColumnName("commercial_consent_accepted").HasDefaultValue(false).IsRequired();
+        
+
         // Strings (allowNull: false)
         builder.Property(e => e.Email).HasColumnName("email").IsRequired();
         builder.Property(e => e.LookingJob).HasColumnName("looking_job").HasDefaultValue("0").IsRequired();

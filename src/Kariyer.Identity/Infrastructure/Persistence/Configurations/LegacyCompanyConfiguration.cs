@@ -57,6 +57,10 @@ public class LegacyCompanyConfiguration : IEntityTypeConfiguration<LegacyCompany
         builder.Property(c => c.EmailVerified).HasColumnName("email_verified").HasDefaultValue(false).IsRequired();
         builder.Property(c => c.PhoneVerified).HasColumnName("phone_verified").HasDefaultValue(false).IsRequired();
 
+        builder.Property(c => c.UserAgreementAccepted).HasColumnName("user_agreement_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(c => c.KvkkAccepted).HasColumnName("kvkk_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(c => c.CommercialConsentAccepted).HasColumnName("commercial_consent_accepted").HasDefaultValue(false).IsRequired();
+
         // Integers
         builder.Property(c => c.PriorityScore).HasColumnName("priority_score").HasDefaultValue(0).IsRequired();
         builder.Property(c => c.PasswordResetCount).HasColumnName("password_reset_count").HasDefaultValue(0).IsRequired();
