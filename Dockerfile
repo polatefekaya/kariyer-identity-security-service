@@ -8,6 +8,9 @@ COPY ["src/Kariyer.Identity/*.csproj", "./"]
 COPY ["nuget.config", "./"]
 RUN dotnet restore
 
+COPY dotnet-tools.json ./dotnet-tools.json
+RUN dotnet tool restore --tool-manifest dotnet-tools.json
+
 COPY . .
 
 RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
