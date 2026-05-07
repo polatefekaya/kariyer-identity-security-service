@@ -118,6 +118,7 @@ public static class SyncExternalUserEndpoint
 
                 await strategy.ExecuteAsync(async () =>
                 {
+                    isNewRecord = false;
                     dbContext.ChangeTracker.Clear();
 
                     using IDbContextTransaction transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -198,11 +199,27 @@ public static class SyncExternalUserEndpoint
                         }
 
                         await dbContext.SaveChangesAsync(cancellationToken);
-                        await transaction.CommitAsync(cancellationToken);
-                        
+
                         if (isNewRecord)
                         {
-                            logger.LogInformation("Database commit successful. New record created for External ID: {Id}", externalId);
+                            AccountCreatedEvent integrationEvent = new()
+                            {
+                                UserId = externalId,
+                                Email = email,
+                                AccountType = accountType,
+                                FirstName = firstName,
+                                LastName = lastName,
+                                PhoneNumber = phoneNumber,
+                                AvatarUrl = avatarUrl
+                            };
+                            await publishEndpoint.Publish(integrationEvent, cancellationToken);
+                        }
+
+                        await transaction.CommitAsync(cancellationToken);
+
+                        if (isNewRecord)
+                        {
+                            logger.LogInformation("Transaction committed. Record and outbox event staged for External ID: {Id}", externalId);
                             activity?.AddEvent(new ActivityEvent("Database Commit Successful"));
                         }
                     }
@@ -222,20 +239,6 @@ public static class SyncExternalUserEndpoint
                 if (isNewRecord)
                 {
                     activity?.SetTag("transaction.outcome", "new_record_created");
-
-                    AccountCreatedEvent integrationEvent = new()
-                    {
-                        UserId = externalId,
-                        Email = email,
-                        AccountType = accountType,
-                        FirstName = firstName,
-                        LastName = lastName,
-                        PhoneNumber = phoneNumber,
-                        AvatarUrl = avatarUrl
-                    };
-                    
-                    logger.LogInformation("Integration Event publishing to RabbitMQ for External ID: {Id}", externalId);
-                    await publishEndpoint.Publish(integrationEvent, cancellationToken);
                 }
                 else if (activity?.GetTagItem("transaction.outcome") == null)
                 {
