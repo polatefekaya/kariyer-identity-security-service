@@ -198,8 +198,6 @@ public static class SyncExternalUserEndpoint
                             }
                         }
 
-                        await dbContext.SaveChangesAsync(cancellationToken);
-
                         if (isNewRecord)
                         {
                             AccountCreatedEvent integrationEvent = new()
@@ -215,6 +213,7 @@ public static class SyncExternalUserEndpoint
                             await publishEndpoint.Publish(integrationEvent, cancellationToken);
                         }
 
+                        await dbContext.SaveChangesAsync(cancellationToken);
                         await transaction.CommitAsync(cancellationToken);
 
                         if (isNewRecord)

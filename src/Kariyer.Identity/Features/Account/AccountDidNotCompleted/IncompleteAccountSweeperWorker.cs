@@ -4,6 +4,7 @@ using MassTransit;
 using Kariyer.Identity.Infrastructure.Persistence;
 using Kariyer.Identity.Domain.Entities;
 using Kariyer.Messaging.Contracts.Account;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Kariyer.Identity.Features.Account.AccountDidNotCompleted;
 
@@ -30,7 +31,7 @@ public sealed class IncompleteAccountSweeperWorker : BackgroundService
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            IDatabase db = _redis.GetDatabase();
+            StackExchange.Redis.IDatabase db = _redis.GetDatabase();
             RedisKey lockKey = "lock:sweeper:incomplete_accounts";
             RedisValue lockToken = Environment.MachineName;
 
@@ -67,69 +68,76 @@ public sealed class IncompleteAccountSweeperWorker : BackgroundService
 
         do
         {
+            dbContext.ChangeTracker.Clear();
+
             DateTime now = DateTime.UtcNow;
             DateTime day1Threshold = now.AddDays(-1);
             DateTime day3Threshold = now.AddDays(-3);
 
             List<LegacyCompany> companiesToRemindStep1 = await dbContext.Companies
-                .Where(c => !c.IsAccountCompleted 
-                         && c.OnboardingReminderStep == 0 
+                .Where(c => !c.IsAccountCompleted
+                         && c.OnboardingReminderStep == 0
                          && c.CreatedDate <= day1Threshold)
-                .OrderBy(c => c.CreatedDate) 
+                .OrderBy(c => c.CreatedDate)
                 .Take(500)
                 .ToListAsync(stoppingToken);
 
-            foreach (LegacyCompany company in companiesToRemindStep1)
-            {
-                AccountDidNotCompletedEvent reminderEvent = new()
-                {
-                    MessageId = Guid.NewGuid().ToString(),
-                    Uid = company.Uid,
-                    Email = company.Email,
-                    FullName = company.CompanyName ?? company.Username,
-                    AccountType = "company",
-                    ReminderStep = 1
-                };
-
-                // Because of the Outbox, this is now a lightning-fast memory operation, not a network call.
-                await publishEndpoint.Publish(reminderEvent, stoppingToken);
-                company.OnboardingReminderStep = 1;
-            }
-
             List<LegacyCompany> companiesToRemindStep2 = await dbContext.Companies
-                .Where(c => !c.IsAccountCompleted 
-                         && c.OnboardingReminderStep == 1 
+                .Where(c => !c.IsAccountCompleted
+                         && c.OnboardingReminderStep == 1
                          && c.CreatedDate <= day3Threshold)
                 .OrderBy(c => c.CreatedDate)
                 .Take(500)
                 .ToListAsync(stoppingToken);
 
-            foreach (LegacyCompany company in companiesToRemindStep2)
-            {
-                AccountDidNotCompletedEvent reminderEvent = new()
-                {
-                    MessageId = Guid.NewGuid().ToString(),
-                    Uid = company.Uid,
-                    Email = company.Email,
-                    FullName = company.CompanyName ?? company.Username,
-                    AccountType = "company",
-                    ReminderStep = 2
-                };
-
-                await publishEndpoint.Publish(reminderEvent, stoppingToken);
-                company.OnboardingReminderStep = 2;
-            }
-
             int totalProcessedInBatch = companiesToRemindStep1.Count + companiesToRemindStep2.Count;
 
             if (totalProcessedInBatch > 0)
             {
-                // Atomic Commit: This saves entity changes AND outbox messages together. No more dual-write ghost messages.
-                await dbContext.SaveChangesAsync(stoppingToken);
-                _logger.LogInformation("Swept {Count} incomplete accounts in current batch.", totalProcessedInBatch);
+                using IDbContextTransaction transaction = await dbContext.Database.BeginTransactionAsync(stoppingToken);
+
+                try
+                {
+                    foreach (LegacyCompany company in companiesToRemindStep1)
+                    {
+                        await publishEndpoint.Publish(new AccountDidNotCompletedEvent
+                        {
+                            MessageId = Guid.NewGuid().ToString(),
+                            Uid = company.Uid,
+                            Email = company.Email,
+                            FullName = company.CompanyName ?? company.Username,
+                            AccountType = "company",
+                            ReminderStep = 1
+                        }, stoppingToken);
+                        company.OnboardingReminderStep = 1;
+                    }
+
+                    foreach (LegacyCompany company in companiesToRemindStep2)
+                    {
+                        await publishEndpoint.Publish(new AccountDidNotCompletedEvent
+                        {
+                            MessageId = Guid.NewGuid().ToString(),
+                            Uid = company.Uid,
+                            Email = company.Email,
+                            FullName = company.CompanyName ?? company.Username,
+                            AccountType = "company",
+                            ReminderStep = 2
+                        }, stoppingToken);
+                        company.OnboardingReminderStep = 2;
+                    }
+
+                    await dbContext.SaveChangesAsync(stoppingToken);
+                    await transaction.CommitAsync(stoppingToken);
+
+                    _logger.LogInformation("Swept {Count} incomplete accounts in current batch.", totalProcessedInBatch);
+                }
+                catch (Exception)
+                {
+                    await transaction.RollbackAsync(stoppingToken);
+                    throw;
+                }
             }
 
-            // Do not sleep if the batch was completely full; keep processing until the backlog is zero.
             hasMoreBacklog = companiesToRemindStep1.Count == 500 || companiesToRemindStep2.Count == 500;
 
         } while (hasMoreBacklog && !stoppingToken.IsCancellationRequested);
