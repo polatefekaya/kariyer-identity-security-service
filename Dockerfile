@@ -1,7 +1,11 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
+ARG GITHUB_USER
+ARG GITHUB_TOKEN
+
 COPY ["src/Kariyer.Identity/*.csproj", "./"]
+COPY ["nuget.config", "./"]
 RUN dotnet restore
 
 COPY . .
