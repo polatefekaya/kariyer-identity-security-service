@@ -112,18 +112,34 @@ public static class SyncExternalUserEndpoint
 
             bool isNewRecord = false;
 
+            if (logger.IsEnabled(LogLevel.Trace))
+            {
+                logger.LogTrace("[DIAG] publishEndpoint runtime type: {PublishEndpointType}", publishEndpoint.GetType().FullName);
+                logger.LogTrace("[DIAG] dbContext instance hash: {DbContextHash}", dbContext.GetHashCode());
+                logger.LogTrace("[DIAG] dbContext tracked entries before strategy: {TrackedCount}", dbContext.ChangeTracker.Entries().Count());
+            }
+
             try
             {
                 IExecutionStrategy strategy = dbContext.Database.CreateExecutionStrategy();
+
+                if (logger.IsEnabled(LogLevel.Trace))
+                    logger.LogTrace("[DIAG] Execution strategy type: {StrategyType}", strategy.GetType().FullName);
 
                 await strategy.ExecuteAsync(async () =>
                 {
                     isNewRecord = false;
                     dbContext.ChangeTracker.Clear();
 
+                    if (logger.IsEnabled(LogLevel.Trace))
+                        logger.LogTrace("[DIAG] ExecuteAsync lambda entered. ChangeTracker cleared. Tracked entries: {TrackedCount}", dbContext.ChangeTracker.Entries().Count());
+
                     using IDbContextTransaction transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-                    try 
+                    if (logger.IsEnabled(LogLevel.Trace))
+                        logger.LogTrace("[DIAG] Transaction begun. TransactionId: {TransactionId}", transaction.TransactionId);
+
+                    try
                     {
                         if (isCompany)
                         {
@@ -139,6 +155,10 @@ public static class SyncExternalUserEndpoint
                                     logger.LogInformation("Migrated Legacy Company: {Email} to External ID: {UserId}", email, externalId);
                                     activity?.AddEvent(new ActivityEvent("Migrated Legacy Company"));
                                 }
+                                else
+                                {
+                                    logger.LogTrace("[DIAG] Existing company already has correct ExternalId. No update needed.");
+                                }
                             }
                             else
                             {
@@ -147,6 +167,7 @@ public static class SyncExternalUserEndpoint
                                 );
                                 await dbContext.Companies.AddAsync(newCompany, cancellationToken);
                                 isNewRecord = true;
+                                logger.LogTrace("[DIAG] New LegacyCompany entity added to ChangeTracker.");
                             }
                         }
                         else if (isAdmin)
@@ -163,6 +184,10 @@ public static class SyncExternalUserEndpoint
                                     logger.LogInformation("Migrated Legacy Admin: {Email} to External ID: {UserId}", email, externalId);
                                     activity?.AddEvent(new ActivityEvent("Migrated Legacy Admin"));
                                 }
+                                else
+                                {
+                                    logger.LogTrace("[DIAG] Existing admin already has correct ExternalId. No update needed.");
+                                }
                             }
                             else
                             {
@@ -171,9 +196,10 @@ public static class SyncExternalUserEndpoint
                                 );
                                 await dbContext.Admins.AddAsync(newAdmin, cancellationToken);
                                 isNewRecord = true;
+                                logger.LogTrace("[DIAG] New LegacyAdmin entity added to ChangeTracker.");
                             }
                         }
-                        else 
+                        else
                         {
                             LegacyEmployee? existingEmployee = await dbContext.Employees
                                 .FirstOrDefaultAsync(e => e.ExternalId == externalId || e.Email == email, cancellationToken);
@@ -187,6 +213,10 @@ public static class SyncExternalUserEndpoint
                                     logger.LogInformation("Migrated Legacy Employee: {Email} to External ID: {UserId}", email, externalId);
                                     activity?.AddEvent(new ActivityEvent("Migrated Legacy Employee"));
                                 }
+                                else
+                                {
+                                    logger.LogTrace("[DIAG] Existing employee already has correct ExternalId. No update needed.");
+                                }
                             }
                             else
                             {
@@ -195,7 +225,16 @@ public static class SyncExternalUserEndpoint
                                 );
                                 await dbContext.Employees.AddAsync(newEmployee, cancellationToken);
                                 isNewRecord = true;
+                                logger.LogTrace("[DIAG] New LegacyEmployee entity added to ChangeTracker.");
                             }
+                        }
+
+                        if (logger.IsEnabled(LogLevel.Trace))
+                        {
+                            var entries = dbContext.ChangeTracker.Entries().ToList();
+                            logger.LogTrace("[DIAG] ChangeTracker state BEFORE Publish(). Total tracked: {Count}", entries.Count);
+                            foreach (var entry in entries)
+                                logger.LogTrace("[DIAG]   -> Entity: {EntityType} | State: {State}", entry.Entity.GetType().FullName, entry.State);
                         }
 
                         if (isNewRecord)
@@ -210,11 +249,41 @@ public static class SyncExternalUserEndpoint
                                 PhoneNumber = phoneNumber,
                                 AvatarUrl = avatarUrl
                             };
+
+                            logger.LogTrace("[DIAG] Calling publishEndpoint.Publish<AccountCreatedEvent>() for UserId: {UserId}", externalId);
                             await publishEndpoint.Publish(integrationEvent, cancellationToken);
+                            logger.LogTrace("[DIAG] publishEndpoint.Publish() returned without exception.");
+
+                            if (logger.IsEnabled(LogLevel.Trace))
+                            {
+                                var entriesAfterPublish = dbContext.ChangeTracker.Entries().ToList();
+                                logger.LogTrace("[DIAG] ChangeTracker state AFTER Publish(). Total tracked: {Count}", entriesAfterPublish.Count);
+                                foreach (var entry in entriesAfterPublish)
+                                    logger.LogTrace("[DIAG]   -> Entity: {EntityType} | State: {State}", entry.Entity.GetType().FullName, entry.State);
+
+                                // If MassTransit's outbox is working, you should see an OutboxMessage entity with State=Added here.
+                                bool hasOutboxMessage = entriesAfterPublish.Any(e => e.Entity.GetType().Name.Contains("OutboxMessage"));
+                                logger.LogTrace("[DIAG] OutboxMessage entity present in ChangeTracker after Publish: {HasOutboxMessage}", hasOutboxMessage);
+                            }
+                        }
+                        else
+                        {
+                            logger.LogTrace("[DIAG] isNewRecord=false — skipping Publish(). This is a migration or no-op path.");
                         }
 
-                        await dbContext.SaveChangesAsync(cancellationToken);
+                        if (logger.IsEnabled(LogLevel.Trace))
+                        {
+                            var entriesBeforeSave = dbContext.ChangeTracker.Entries().ToList();
+                            logger.LogTrace("[DIAG] Calling SaveChangesAsync(). Pending changes: {Count}", entriesBeforeSave.Count);
+                            foreach (var entry in entriesBeforeSave)
+                                logger.LogTrace("[DIAG]   -> Saving: {EntityType} | State: {State}", entry.Entity.GetType().FullName, entry.State);
+                        }
+
+                        int savedCount = await dbContext.SaveChangesAsync(cancellationToken);
+                        logger.LogTrace("[DIAG] SaveChangesAsync() completed. Rows affected: {SavedCount}", savedCount);
+
                         await transaction.CommitAsync(cancellationToken);
+                        logger.LogTrace("[DIAG] transaction.CommitAsync() completed. TransactionId: {TransactionId}", transaction.TransactionId);
 
                         if (isNewRecord)
                         {
@@ -225,12 +294,12 @@ public static class SyncExternalUserEndpoint
                     catch (DbUpdateException dbEx) when (dbEx.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
                     {
                         await transaction.RollbackAsync(cancellationToken);
-                        
+
                         logger.LogError("RACE CONDITION CAUGHT: Thread tried to insert User {Id} but the email is already locked by a concurrent process. Rejecting webhook.", externalId);
-                        
+
                         activity?.SetTag("transaction.outcome", "concurrent_duplicate_rejected");
                         activity?.AddEvent(new ActivityEvent("Idempotency Conflict Triggered"));
-                        
+
                         throw new InvalidOperationException("Concurrent signup collision. Ghost record aborted.");
                     }
                 });
