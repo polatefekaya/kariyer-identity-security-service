@@ -101,10 +101,27 @@ public sealed class IncompleteAccountSweeperWorker : BackgroundService
                 .Take(500)
                 .ToListAsync(stoppingToken);
 
-            int totalProcessedInBatch = companiesToRemindStep1.Count + companiesToRemindStep2.Count;
+            List<LegacyEmployee> employeesToRemindStep1 = await dbContext.Employees
+                .Where(e => !e.IsAccountCompleted
+                         && e.OnboardingReminderStep == 0
+                         && e.CreatedDate <= day1Threshold)
+                .OrderBy(e => e.CreatedDate)
+                .Take(500)
+                .ToListAsync(stoppingToken);
 
-            _logger.LogTrace("[DIAG] Batch {Batch} query results — Step1 candidates: {Step1Count}, Step2 candidates: {Step2Count}, Total: {Total}",
-                batchNumber, companiesToRemindStep1.Count, companiesToRemindStep2.Count, totalProcessedInBatch);
+            List<LegacyEmployee> employeesToRemindStep2 = await dbContext.Employees
+                .Where(e => !e.IsAccountCompleted
+                         && e.OnboardingReminderStep == 1
+                         && e.CreatedDate <= day3Threshold)
+                .OrderBy(e => e.CreatedDate)
+                .Take(500)
+                .ToListAsync(stoppingToken);
+
+            int totalProcessedInBatch = companiesToRemindStep1.Count + companiesToRemindStep2.Count
+                + employeesToRemindStep1.Count + employeesToRemindStep2.Count;
+
+            _logger.LogTrace("[DIAG] Batch {Batch} query results — Company Step1: {CS1}, Company Step2: {CS2}, Employee Step1: {ES1}, Employee Step2: {ES2}, Total: {Total}",
+                batchNumber, companiesToRemindStep1.Count, companiesToRemindStep2.Count, employeesToRemindStep1.Count, employeesToRemindStep2.Count, totalProcessedInBatch);
 
             if (totalProcessedInBatch > 0)
             {
@@ -152,6 +169,44 @@ public sealed class IncompleteAccountSweeperWorker : BackgroundService
                         company.OnboardingReminderStep = 2;
                     }
 
+                    foreach (LegacyEmployee employee in employeesToRemindStep1)
+                    {
+                        _logger.LogTrace("[DIAG] Publishing AccountDidNotCompletedEvent (Step1/ReminderStep=1) for employee Uid: {Uid}", employee.Uid);
+
+                        await publishEndpoint.Publish(new AccountDidNotCompletedEvent
+                        {
+                            MessageId = Guid.NewGuid().ToString(),
+                            Uid = employee.Uid,
+                            Email = employee.Email,
+                            FullName = $"{employee.Name} {employee.Surname}".Trim() is { Length: > 0 } n ? n : employee.Username ?? string.Empty,
+                            AccountType = "employee",
+                            ReminderStep = 1
+                        }, stoppingToken);
+
+                        _logger.LogTrace("[DIAG] Publish(Step1) returned for employee Uid: {Uid}. ChangeTracker now has {TrackedCount} entries.", employee.Uid, dbContext.ChangeTracker.Entries().Count());
+
+                        employee.OnboardingReminderStep = 1;
+                    }
+
+                    foreach (LegacyEmployee employee in employeesToRemindStep2)
+                    {
+                        _logger.LogTrace("[DIAG] Publishing AccountDidNotCompletedEvent (Step2/ReminderStep=2) for employee Uid: {Uid}", employee.Uid);
+
+                        await publishEndpoint.Publish(new AccountDidNotCompletedEvent
+                        {
+                            MessageId = Guid.NewGuid().ToString(),
+                            Uid = employee.Uid,
+                            Email = employee.Email,
+                            FullName = $"{employee.Name} {employee.Surname}".Trim() is { Length: > 0 } n ? n : employee.Username ?? string.Empty,
+                            AccountType = "employee",
+                            ReminderStep = 2
+                        }, stoppingToken);
+
+                        _logger.LogTrace("[DIAG] Publish(Step2) returned for employee Uid: {Uid}. ChangeTracker now has {TrackedCount} entries.", employee.Uid, dbContext.ChangeTracker.Entries().Count());
+
+                        employee.OnboardingReminderStep = 2;
+                    }
+
                     if (_logger.IsEnabled(LogLevel.Trace))
                     {
                         var entriesBeforeSave = dbContext.ChangeTracker.Entries().ToList();
@@ -183,7 +238,8 @@ public sealed class IncompleteAccountSweeperWorker : BackgroundService
                 _logger.LogTrace("[DIAG] Batch {Batch} — no accounts to process. Skipping transaction.", batchNumber);
             }
 
-            hasMoreBacklog = companiesToRemindStep1.Count == 500 || companiesToRemindStep2.Count == 500;
+            hasMoreBacklog = companiesToRemindStep1.Count == 500 || companiesToRemindStep2.Count == 500
+                || employeesToRemindStep1.Count == 500 || employeesToRemindStep2.Count == 500;
             _logger.LogTrace("[DIAG] Batch {Batch} done. hasMoreBacklog: {HasMoreBacklog}", batchNumber, hasMoreBacklog);
 
         } while (hasMoreBacklog && !stoppingToken.IsCancellationRequested);

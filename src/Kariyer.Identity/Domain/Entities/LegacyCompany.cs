@@ -1,3 +1,5 @@
+using Kariyer.Identity.Domain.Enums;
+
 namespace Kariyer.Identity.Domain.Entities;
 
 public class LegacyCompany
@@ -100,7 +102,7 @@ public class LegacyCompany
     public DateTimeOffset? RejectedAt { get; set; }
     public string? RejectionReason { get; set; }
     
-    public string Approved { get; set; } = "registered";
+    public ApprovedStatus Approved { get; set; } = ApprovedStatus.Registered;
     
     public DateTimeOffset CreatedDate { get; set; }
 

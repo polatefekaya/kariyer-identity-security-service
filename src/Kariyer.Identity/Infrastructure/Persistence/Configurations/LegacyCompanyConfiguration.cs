@@ -1,6 +1,8 @@
 using Kariyer.Identity.Domain.Entities;
+using Kariyer.Identity.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Kariyer.Identity.Infrastructure.Persistence.Configurations;
 
@@ -114,10 +116,22 @@ public class LegacyCompanyConfiguration : IEntityTypeConfiguration<LegacyCompany
         builder.Property(c => c.RejectedAt).HasColumnName("rejected_at").IsRequired(false);
         builder.Property(c => c.RejectionReason).HasColumnName("rejection_reason").IsRequired(false);
 
-        // Map Sequelize ENUM as a string to avoid Npgsql type casting mismatch
         builder.Property(c => c.Approved)
                .HasColumnName("approved")
-               .HasDefaultValue("registered")
+               .HasDefaultValue(ApprovedStatus.Registered)
+               .HasConversion(new ValueConverter<ApprovedStatus, string>(
+                   v => v switch
+                   {
+                       ApprovedStatus.Inserted => "inserted",
+                       ApprovedStatus.None     => "none",
+                       _                       => "registered"
+                   },
+                   v => v switch
+                   {
+                       "inserted" => ApprovedStatus.Inserted,
+                       "none"     => ApprovedStatus.None,
+                       _          => ApprovedStatus.Registered
+                   }))
                .IsRequired();
 
         builder.Property(c => c.CreatedDate)
