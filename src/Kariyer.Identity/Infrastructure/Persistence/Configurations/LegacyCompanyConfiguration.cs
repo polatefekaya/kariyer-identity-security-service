@@ -120,18 +120,8 @@ public class LegacyCompanyConfiguration : IEntityTypeConfiguration<LegacyCompany
                .HasColumnName("approved")
                .HasDefaultValue(ApprovedStatus.Registered)
                .HasConversion(new ValueConverter<ApprovedStatus, string>(
-                   v => v switch
-                   {
-                       ApprovedStatus.Inserted => "inserted",
-                       ApprovedStatus.None     => "none",
-                       _                       => "registered"
-                   },
-                   v => v switch
-                   {
-                       "inserted" => ApprovedStatus.Inserted,
-                       "none"     => ApprovedStatus.None,
-                       _          => ApprovedStatus.Registered
-                   }))
+                   v => v == ApprovedStatus.Inserted ? "inserted" : v == ApprovedStatus.None ? "none" : "registered",
+                   v => v == "inserted" ? ApprovedStatus.Inserted : v == "none" ? ApprovedStatus.None : ApprovedStatus.Registered))
                .IsRequired();
 
         builder.Property(c => c.CreatedDate)
