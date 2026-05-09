@@ -9,7 +9,11 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using StackExchange.Redis;
+using Kariyer.Identity.Domain.Entities;
 using Kariyer.Identity.Features.Account.AccountDidNotCompleted;
+using Kariyer.Identity.Features.AccountLifecycle;
+using Kariyer.Identity.Features.AccountLifecycle.GracePeriodSweeper;
+using Kariyer.Identity.Features.AccountLifecycle.Saga;
 using Kariyer.Identity.Features.Admins;
 using Kariyer.Identity.Features.Webhooks.SyncExternalUser;
 using Kariyer.Identity.Infrastructure.Auth;
@@ -118,6 +122,18 @@ try
             outboxConfigurator.QueryDelay = TimeSpan.FromSeconds(1);
         });
 
+        busConfigurator.AddSagaStateMachine<AccountDeletionSaga, AccountDeletionSagaState>()
+            .EntityFrameworkRepository(r =>
+            {
+                r.ConcurrencyMode = ConcurrencyMode.Pessimistic;
+                r.ExistingDbContext<IdentityDbContext>();
+                r.UsePostgres();
+            });
+
+        busConfigurator.AddConsumer<BanUserForDeletionConsumer>();
+        busConfigurator.AddConsumer<UnbanUserConsumer>();
+        busConfigurator.AddConsumer<DeleteUserPermanentlyConsumer>();
+
         busConfigurator.UsingRabbitMq((context, rabbitConfigurator) =>
         {
             rabbitConfigurator.Host(rabbitHost, "/", hostConfigurator =>
@@ -126,11 +142,14 @@ try
                 hostConfigurator.Password(builder.Configuration["RabbitMQ:Password"] ?? "guest");
             });
 
-            rabbitConfigurator.UseMessageRetry(retryConfigurator => 
+            rabbitConfigurator.UseMessageRetry(retryConfigurator =>
                 retryConfigurator.Interval(3, TimeSpan.FromSeconds(5)));
 
             rabbitConfigurator.Message<AccountCreatedEvent>(topology => topology.SetEntityName("identity.account.created"));
             rabbitConfigurator.Message<AccountDidNotCompletedEvent>(topology => topology.SetEntityName("identity.account.not-completed"));
+            rabbitConfigurator.Message<AccountFrozenEvent>(topology => topology.SetEntityName("identity.account.frozen"));
+            rabbitConfigurator.Message<AccountDeletedEvent>(topology => topology.SetEntityName("identity.account.deleted"));
+            rabbitConfigurator.Message<AccountDeletionCancelledEvent>(topology => topology.SetEntityName("identity.account.deletion-cancelled"));
 
             rabbitConfigurator.ConfigureEndpoints(context);
         });
@@ -147,8 +166,10 @@ try
 
     builder.Services.AddSupabaseJwtAuthentication(builder.Configuration, Log.Logger);
     builder.Services.AddAdminFeature();
+    builder.Services.AddAccountLifecycleFeature();
     builder.Services.AddScoped<ISupabaseAdminAuthService, SupabaseAdminAuthService>();
     builder.Services.AddHostedService<IncompleteAccountSweeperWorker>();
+    builder.Services.AddHostedService<GracePeriodSweeperWorker>();
     builder.Services.AddCustomReverseProxy(builder.Configuration);
 
     builder.Services.ConfigureHttpJsonOptions(options =>
@@ -227,6 +248,7 @@ try
     app.MapReverseProxy();
     app.MapSyncSupabaseUserEndpoint();
     app.MapAdminEndpoints();
+    app.MapAccountLifecycleEndpoints();
 
     await app.RunAsync();
 }

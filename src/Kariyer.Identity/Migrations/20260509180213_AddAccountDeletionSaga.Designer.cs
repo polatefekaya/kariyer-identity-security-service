@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Kariyer.Identity.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Kariyer.Identity.Migrations
 {
     [DbContext(typeof(IdentityDbContext))]
-    partial class IdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260509180213_AddAccountDeletionSaga")]
+    partial class AddAccountDeletionSaga
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -85,9 +88,7 @@ namespace Kariyer.Identity.Migrations
                     b.HasKey("CorrelationId");
 
                     b.HasIndex("UserUid")
-                        .IsUnique()
-                        .HasDatabaseName("uix_account_deletion_saga_state_active_user")
-                        .HasFilter("current_state NOT IN ('Deleted', 'Cancelled')");
+                        .HasDatabaseName("ix_account_deletion_saga_state_user_uid");
 
                     b.HasIndex("CurrentState", "GracePeriodEndsAt")
                         .HasDatabaseName("ix_account_deletion_saga_state_grace_period");

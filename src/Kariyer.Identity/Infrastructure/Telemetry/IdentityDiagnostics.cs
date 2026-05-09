@@ -19,4 +19,9 @@ public static class IdentityDiagnostics
             name: "identity.admin.operations.count",
             unit: "{operations}",
             description: "Counts the number of admin operations (create, update, delete, status toggle).");
+
+    public static readonly Counter<int> AccountLifecycleCounter = Meter.CreateCounter<int>(
+        name: "identity.account.lifecycle.count",
+        unit: "{operations}",
+        description: "Counts account lifecycle operations (freeze, restore, deletion_requested, deletion_executed, deletion_cancelled).");
 }

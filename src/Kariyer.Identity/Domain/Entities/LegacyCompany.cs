@@ -136,4 +136,41 @@ public class LegacyCompany
         ExternalId = externalId;
         IsAccountCompleted = false;
     }
+
+    public void Freeze(string deletedBy)
+    {
+        IsDeleted = true;
+        DeletedBy = deletedBy;
+        DeletedDate = DateTimeOffset.UtcNow;
+    }
+
+    public void Restore()
+    {
+        IsDeleted = false;
+        DeletedBy = null;
+        DeletedDate = null;
+        DeletionRequestedAt = null;
+    }
+
+    public void AnonymizeForDeletion(string externalIdSuffix)
+    {
+        if (PermaDeleted) return;
+
+        const string delMarker = "__del_";
+        string suffix = $"{delMarker}{externalIdSuffix}";
+
+        if (!Email.Contains(delMarker)) Email = Email + suffix;
+        if (Phone != null && !Phone.Contains(delMarker)) Phone = Phone + suffix;
+        if (Username != null && !Username.Contains(delMarker)) Username = Username + suffix;
+        if (TaxIdNumber != null && !TaxIdNumber.Contains(delMarker)) TaxIdNumber = TaxIdNumber + suffix;
+
+        // Hashes are no longer valid lookup keys
+        EmailHash = null;
+        PhoneHash = null;
+        TaxIdNumberHash = null;
+
+        IsDeleted = true;
+        PermaDeleted = true;
+        DeletedDate = DateTimeOffset.UtcNow;
+    }
 }

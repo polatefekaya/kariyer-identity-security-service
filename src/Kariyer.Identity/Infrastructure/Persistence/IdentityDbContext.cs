@@ -10,6 +10,7 @@ public class IdentityDbContext : DbContext
     public DbSet<LegacyEmployee> Employees => Set<LegacyEmployee>();
     public DbSet<LegacyCompany> Companies => Set<LegacyCompany>();
     public DbSet<LegacyAdmin> Admins => Set<LegacyAdmin>();
+    public DbSet<AccountDeletionSagaState> AccountDeletionSagas => Set<AccountDeletionSagaState>();
 
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
