@@ -57,6 +57,9 @@ public static class AuthenticationExtensions
                                             string? role = accountTypeElement.GetString();
                                             if (!string.IsNullOrWhiteSpace(role))
                                             {
+                                                Claim? existingRole = identity.FindFirst("role");
+                                                if (existingRole is not null)
+                                                    identity.RemoveClaim(existingRole);
                                                 identity.AddClaim(new Claim("role", role));
                                             }
                                         }
@@ -69,9 +72,9 @@ public static class AuthenticationExtensions
                     });
                     
         services.AddAuthorizationBuilder()
-            .AddPolicy("RequireAdmin", policy => 
+            .AddPolicy("RequireAdmin", policy =>
                 policy.RequireRole("admin", "super_admin"))
-            .AddPolicy("RequireSuperAdmin", policy => 
+            .AddPolicy("RequireSuperAdmin", policy =>
                 policy.RequireRole("super_admin"));
 
         return services;
