@@ -41,7 +41,7 @@ internal sealed class GetDeletionStatusService(
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (saga is null)
-                return Results.NotFound(new ApiResponse<object>(false, "Bu hesap için silme kaydı bulunamadı.", null));
+                return Results.Ok(new ApiResponse<DeletionStatusDto?>(true, "Bu hesap için aktif bir silme işlemi yok.", null));
 
             DeletionStatusDto dto = new(
                 UserUid: saga.UserUid,
