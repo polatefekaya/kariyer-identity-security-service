@@ -22,7 +22,9 @@ public static class AccountLifecycleModule
     public static IEndpointRouteBuilder MapAccountLifecycleEndpoints(this IEndpointRouteBuilder app)
     {
         RouteGroupBuilder group = app.MapGroup("/api/accounts")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting("AccountLifecycle")
+            .WithTags("AccountLifecycle");
 
         group.MapFreezeAccount();
         group.MapRestoreAccount();

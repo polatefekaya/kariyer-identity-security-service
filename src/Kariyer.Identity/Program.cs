@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using MassTransit;
 using MassTransit.Logging;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -164,6 +165,22 @@ try
     builder.Services.AddSingleton<Supabase.Client>(provider => 
         new Supabase.Client(externalProviderUrl, externalProviderJwt, supabaseOptions));
 
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.AddPolicy("AccountLifecycle", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: context.User.FindFirst("sub")?.Value
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "anonymous",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 20,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                }));
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    });
+
     builder.Services.AddSupabaseJwtAuthentication(builder.Configuration, Log.Logger);
     builder.Services.AddAdminFeature();
     builder.Services.AddAccountLifecycleFeature();
@@ -235,6 +252,7 @@ try
     app.UseCors("StrictFrontendPolicy");
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseRateLimiter();
 
     app.MapHealthChecks("/health/ready", new HealthCheckOptions
     {
