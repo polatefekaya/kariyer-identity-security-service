@@ -71,7 +71,7 @@ try
                 "https://admin.kariyerzamani.com",
                 "https://tst.kariyerzamani.com"
             )
-            .AllowAnyMethod()
+            .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .AllowAnyHeader()
             .AllowCredentials();
         });
@@ -178,6 +178,19 @@ try
                     Window = TimeSpan.FromMinutes(1),
                     QueueLimit = 0
                 }));
+
+        options.AddPolicy("AdminOperations", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: context.User.FindFirst("sub")?.Value
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "anonymous",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 60,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                }));
+
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     });
 
@@ -237,6 +250,17 @@ try
         await supabaseClient.InitializeAsync();
     }
 
+    app.UseExceptionHandler(exceptionHandlerApp =>
+    {
+        exceptionHandlerApp.Run(async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(
+                new { success = false, message = "Sunucu hatası oluştu. Lütfen tekrar deneyin.", data = (object?)null });
+        });
+    });
+
     app.Use(async (HttpContext context, Func<Task> next) =>
     {
         if (context.Request.Path.StartsWithSegments("/api/webhooks/supabase", StringComparison.OrdinalIgnoreCase))
@@ -244,6 +268,9 @@ try
             context.Request.ContentType = "application/json";
         }
         context.Request.EnableBuffering();
+        context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        context.Response.Headers.Append("X-Frame-Options", "DENY");
+        context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
         await next();
     });
 

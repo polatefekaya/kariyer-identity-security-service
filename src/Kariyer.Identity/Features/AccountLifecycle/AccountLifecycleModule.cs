@@ -15,6 +15,7 @@ public static class AccountLifecycleModule
         services.AddScoped<IRequestDeletionService, RequestDeletionService>();
         services.AddScoped<ICancelDeletionService, CancelDeletionService>();
         services.AddScoped<IGetDeletionStatusService, GetDeletionStatusService>();
+        services.AddScoped<IGetDeletionStatusBatchService, GetDeletionStatusBatchService>();
 
         return services;
     }
@@ -31,6 +32,7 @@ public static class AccountLifecycleModule
         group.MapRequestDeletion();
         group.MapCancelDeletion();     // internally adds RequireAuthorization("RequireAdmin")
         group.MapGetDeletionStatus();
+        group.MapGetDeletionStatusBatch();
 
         return app;
     }

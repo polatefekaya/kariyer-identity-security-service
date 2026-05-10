@@ -28,7 +28,9 @@ public static class AdminModule
         app.MapBootstrapAdmin();
         
         RouteGroupBuilder adminGroup = app.MapGroup("/api/admins")
-            .RequireAuthorization("RequireAdmin");
+            .RequireAuthorization("RequireAdmin")
+            .RequireRateLimiting("AdminOperations")
+            .WithTags("Admins");
 
         adminGroup.MapCreateAdmin();
         adminGroup.MapGetAdmins();
