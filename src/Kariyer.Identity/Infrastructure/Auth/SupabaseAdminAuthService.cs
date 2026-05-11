@@ -77,4 +77,32 @@ internal sealed class SupabaseAdminAuthService : ISupabaseAdminAuthService
         IGotrueAdminClient<User> adminAuth = _supabaseClient.AdminAuth(_serviceRoleKey);
         await adminAuth.DeleteUser(uid.ToString());
     }
+
+    public async Task SetFrozenStatusAsync(Guid uid, bool isFrozen, CancellationToken cancellationToken)
+    {
+        AdminUserAttributes attributes = new()
+        {
+            UserMetadata = new Dictionary<string, object>
+            {
+                { "is_frozen", isFrozen }
+            }
+        };
+
+        IGotrueAdminClient<User> adminAuth = _supabaseClient.AdminAuth(_serviceRoleKey);
+        await adminAuth.UpdateUserById(uid.ToString(), attributes);
+    }
+
+    public async Task UpdateEmailAsync(Guid uid, string email, CancellationToken cancellationToken)
+    {
+        AdminUserAttributes attributes = new() { Email = email };
+        IGotrueAdminClient<User> adminAuth = _supabaseClient.AdminAuth(_serviceRoleKey);
+        await adminAuth.UpdateUserById(uid.ToString(), attributes);
+    }
+
+    public async Task UpdatePhoneAsync(Guid uid, string phone, CancellationToken cancellationToken)
+    {
+        AdminUserAttributes attributes = new() { Phone = phone };
+        IGotrueAdminClient<User> adminAuth = _supabaseClient.AdminAuth(_serviceRoleKey);
+        await adminAuth.UpdateUserById(uid.ToString(), attributes);
+    }
 }

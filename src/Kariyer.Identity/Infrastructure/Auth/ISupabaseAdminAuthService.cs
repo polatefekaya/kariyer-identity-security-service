@@ -6,4 +6,7 @@ internal interface ISupabaseAdminAuthService
     Task BanUserAsync(Guid uid, CancellationToken cancellationToken);
     Task UnbanUserAsync(Guid uid, CancellationToken cancellationToken);
     Task DeleteUserAsync(Guid uid, CancellationToken cancellationToken);
+    Task SetFrozenStatusAsync(Guid uid, bool isFrozen, CancellationToken cancellationToken);
+    Task UpdateEmailAsync(Guid uid, string email, CancellationToken cancellationToken);
+    Task UpdatePhoneAsync(Guid uid, string phone, CancellationToken cancellationToken);
 }

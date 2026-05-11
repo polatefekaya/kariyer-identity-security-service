@@ -31,7 +31,14 @@ internal sealed class RequestDeletionService(
 
             activity?.SetTag("caller.is_admin", isAdmin.ToString());
 
-            string userType = uid.EndsWith("-company") ? "company" : "employee";
+            string userType;
+            if (!isAdmin)
+                userType = callerRole == "company" ? "company" : "employee";
+            else
+            {
+                bool existsAsEmployee = await dbContext.Employees.AnyAsync(e => e.Uid == uid, cancellationToken);
+                userType = existsAsEmployee ? "employee" : "company";
+            }
             activity?.SetTag("account.type", userType);
 
             Guid externalId;

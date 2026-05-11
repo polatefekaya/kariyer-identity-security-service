@@ -12,6 +12,8 @@ using Serilog;
 using StackExchange.Redis;
 using Kariyer.Identity.Domain.Entities;
 using Kariyer.Identity.Features.Account.AccountDidNotCompleted;
+using Kariyer.Identity.Features.AccountCredentials;
+using Kariyer.Identity.Features.AccountCredentials.Saga;
 using Kariyer.Identity.Features.AccountLifecycle;
 using Kariyer.Identity.Features.AccountLifecycle.GracePeriodSweeper;
 using Kariyer.Identity.Features.AccountLifecycle.Saga;
@@ -131,9 +133,19 @@ try
                 r.UsePostgres();
             });
 
+        busConfigurator.AddSagaStateMachine<CredentialUpdateSaga, CredentialUpdateSagaState>()
+            .EntityFrameworkRepository(r =>
+            {
+                r.ConcurrencyMode = ConcurrencyMode.Pessimistic;
+                r.ExistingDbContext<IdentityDbContext>();
+                r.UsePostgres();
+            });
+
         busConfigurator.AddConsumer<BanUserForDeletionConsumer>();
         busConfigurator.AddConsumer<UnbanUserConsumer>();
         busConfigurator.AddConsumer<DeleteUserPermanentlyConsumer>();
+        busConfigurator.AddConsumer<Kariyer.Identity.Features.AccountCredentials.Saga.UpdateCredentialInSupabaseConsumer>();
+        busConfigurator.AddConsumer<Kariyer.Identity.Features.AccountCredentials.Saga.RevertCredentialInDbConsumer>();
 
         busConfigurator.UsingRabbitMq((context, rabbitConfigurator) =>
         {
@@ -151,6 +163,9 @@ try
             rabbitConfigurator.Message<AccountFrozenEvent>(topology => topology.SetEntityName("identity.account.frozen"));
             rabbitConfigurator.Message<AccountDeletedEvent>(topology => topology.SetEntityName("identity.account.deleted"));
             rabbitConfigurator.Message<AccountDeletionCancelledEvent>(topology => topology.SetEntityName("identity.account.deletion-cancelled"));
+            rabbitConfigurator.Message<AccountEmailChangedEvent>(topology => topology.SetEntityName("identity.account.email-changed"));
+            rabbitConfigurator.Message<AccountPhoneChangedEvent>(topology => topology.SetEntityName("identity.account.phone-changed"));
+            rabbitConfigurator.Message<AccountUsernameChangedEvent>(topology => topology.SetEntityName("identity.account.username-changed"));
 
             rabbitConfigurator.ConfigureEndpoints(context);
         });
@@ -197,6 +212,7 @@ try
     builder.Services.AddSupabaseJwtAuthentication(builder.Configuration, Log.Logger);
     builder.Services.AddAdminFeature();
     builder.Services.AddAccountLifecycleFeature();
+    builder.Services.AddAccountCredentialsFeature();
     builder.Services.AddScoped<ISupabaseAdminAuthService, SupabaseAdminAuthService>();
     builder.Services.AddHostedService<IncompleteAccountSweeperWorker>();
     builder.Services.AddHostedService<GracePeriodSweeperWorker>();
@@ -294,6 +310,7 @@ try
     app.MapSyncSupabaseUserEndpoint();
     app.MapAdminEndpoints();
     app.MapAccountLifecycleEndpoints();
+    app.MapAccountCredentialsEndpoints();
 
     await app.RunAsync();
 }

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using Kariyer.Identity.Domain.Entities;
 using Kariyer.Identity.Features.Shared;
+using Kariyer.Identity.Infrastructure.Auth;
 using Kariyer.Identity.Infrastructure.Persistence;
 using Kariyer.Identity.Infrastructure.Telemetry;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ namespace Kariyer.Identity.Features.AccountLifecycle.RestoreAccount;
 
 internal sealed class RestoreAccountService(
     IdentityDbContext dbContext,
+    ISupabaseAdminAuthService supabaseAuth,
     ILogger<RestoreAccountService> logger) : IRestoreAccountService
 {
     public async Task<IResult> HandleAsync(string uid, ClaimsPrincipal caller, CancellationToken cancellationToken)
@@ -25,8 +27,17 @@ internal sealed class RestoreAccountService(
 
             activity?.SetTag("caller.is_admin", isAdmin.ToString());
 
-            string userType = uid.EndsWith("-company") ? "company" : "employee";
+            string userType;
+            if (!isAdmin)
+                userType = callerRole == "company" ? "company" : "employee";
+            else
+            {
+                bool existsAsEmployee = await dbContext.Employees.AnyAsync(e => e.Uid == uid, cancellationToken);
+                userType = existsAsEmployee ? "employee" : "company";
+            }
             activity?.SetTag("account.type", userType);
+
+            Guid? accountExternalId = null;
 
             if (userType == "employee")
             {
@@ -45,6 +56,7 @@ internal sealed class RestoreAccountService(
                 if (!isAdmin && employee.ExternalId?.ToString() != callerSub)
                     return Results.Forbid();
 
+                accountExternalId = employee.ExternalId;
                 employee.Restore();
             }
             else
@@ -64,10 +76,17 @@ internal sealed class RestoreAccountService(
                 if (!isAdmin && company.ExternalId?.ToString() != callerSub)
                     return Results.Forbid();
 
+                accountExternalId = company.ExternalId;
                 company.Restore();
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
+
+            if (accountExternalId.HasValue)
+            {
+                try { await supabaseAuth.SetFrozenStatusAsync(accountExternalId.Value, false, cancellationToken); }
+                catch (Exception ex) { logger.LogWarning(ex, "Failed to set is_frozen=false in Supabase for {Uid}. DB restore succeeded.", uid); }
+            }
 
             IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                 new KeyValuePair<string, object?>("operation", "restore"),

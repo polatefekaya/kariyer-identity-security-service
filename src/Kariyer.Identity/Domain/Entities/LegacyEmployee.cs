@@ -154,4 +154,40 @@ public class LegacyEmployee
         PermaDeleted = true;
         DeletedDate = DateTimeOffset.UtcNow;
     }
+
+    public void UpdateEmail(string newEmail, string? newEmailHash)
+    {
+        Email = newEmail;
+        EmailHash = newEmailHash;
+        EmailVerified = false;
+        EmailUpdate = DateTimeOffset.UtcNow;
+    }
+
+    public void RevertEmail(string oldEmail, string? oldEmailHash)
+    {
+        Email = oldEmail;
+        EmailHash = oldEmailHash;
+        EmailUpdate = DateTimeOffset.UtcNow;
+    }
+
+    public void UpdatePhone(string? newPhone, string? newPhoneHash)
+    {
+        Phone = newPhone;
+        PhoneHash = newPhoneHash;
+        PhoneVerified = false;
+        PhoneUpdate = DateTimeOffset.UtcNow;
+    }
+
+    public void RevertPhone(string? oldPhone, string? oldPhoneHash)
+    {
+        Phone = oldPhone;
+        PhoneHash = oldPhoneHash;
+        PhoneUpdate = DateTimeOffset.UtcNow;
+    }
+
+    public void UpdateUsername(string? newUsername)
+    {
+        Username = newUsername;
+        UsernameUpdate = DateTimeOffset.UtcNow;
+    }
 }

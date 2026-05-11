@@ -25,11 +25,10 @@ internal sealed class GetDeletionStatusService(
 
             if (!isAdmin)
             {
-                // Self check: verify caller owns the target account
-                string userType = uid.EndsWith("-company") ? "company" : "employee";
-                bool ownsAccount = userType == "employee"
-                    ? await dbContext.Employees.AnyAsync(e => e.Uid == uid && e.ExternalId.ToString() == callerSub, cancellationToken)
-                    : await dbContext.Companies.AnyAsync(c => c.Uid == uid && c.ExternalId.ToString() == callerSub, cancellationToken);
+                // Self check: verify caller owns the target account; role claim is account_type ("employee" or "company")
+                bool ownsAccount = callerRole == "company"
+                    ? await dbContext.Companies.AnyAsync(c => c.Uid == uid && c.ExternalId.ToString() == callerSub, cancellationToken)
+                    : await dbContext.Employees.AnyAsync(e => e.Uid == uid && e.ExternalId.ToString() == callerSub, cancellationToken);
 
                 if (!ownsAccount)
                     return Results.Forbid();

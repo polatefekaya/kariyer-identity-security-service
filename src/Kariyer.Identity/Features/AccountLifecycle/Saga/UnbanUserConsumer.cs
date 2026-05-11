@@ -36,7 +36,15 @@ internal sealed class UnbanUserConsumer(
             string email = string.Empty;
             string fullName = string.Empty;
 
-            if (message.UserUid.EndsWith("-company"))
+            LegacyEmployee? employee = await dbContext.Employees
+                .FirstOrDefaultAsync(e => e.Uid == message.UserUid, context.CancellationToken);
+
+            if (employee is not null)
+            {
+                email = employee.Email;
+                fullName = $"{employee.Name} {employee.Surname}".Trim();
+            }
+            else
             {
                 LegacyCompany? company = await dbContext.Companies
                     .FirstOrDefaultAsync(c => c.Uid == message.UserUid, context.CancellationToken);
@@ -44,16 +52,6 @@ internal sealed class UnbanUserConsumer(
                 {
                     email = company.Email;
                     fullName = company.CompanyName ?? company.AuthorizedName ?? string.Empty;
-                }
-            }
-            else
-            {
-                LegacyEmployee? employee = await dbContext.Employees
-                    .FirstOrDefaultAsync(e => e.Uid == message.UserUid, context.CancellationToken);
-                if (employee is not null)
-                {
-                    email = employee.Email;
-                    fullName = $"{employee.Name} {employee.Surname}".Trim();
                 }
             }
 
