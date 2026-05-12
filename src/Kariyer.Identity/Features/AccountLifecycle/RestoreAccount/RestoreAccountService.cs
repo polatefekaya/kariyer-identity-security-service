@@ -44,6 +44,10 @@ internal sealed class RestoreAccountService(
                 LegacyEmployee? employee = await dbContext.Employees
                     .FirstOrDefaultAsync(e => e.Uid == uid, cancellationToken);
 
+                if (employee is null && Guid.TryParse(uid, out Guid uidAsGuid))
+                    employee = await dbContext.Employees
+                        .FirstOrDefaultAsync(e => e.ExternalId == uidAsGuid, cancellationToken);
+
                 if (employee is null)
                     return Results.NotFound(new ApiResponse<object>(false, "Çalışan bulunamadı.", null));
 
@@ -63,6 +67,10 @@ internal sealed class RestoreAccountService(
             {
                 LegacyCompany? company = await dbContext.Companies
                     .FirstOrDefaultAsync(c => c.Uid == uid, cancellationToken);
+
+                if (company is null && Guid.TryParse(uid, out Guid uidAsGuid))
+                    company = await dbContext.Companies
+                        .FirstOrDefaultAsync(c => c.ExternalId == uidAsGuid, cancellationToken);
 
                 if (company is null)
                     return Results.NotFound(new ApiResponse<object>(false, "Şirket bulunamadı.", null));
