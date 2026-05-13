@@ -71,6 +71,8 @@ public static class SyncExternalUserEndpoint
             bool userAgreementAccepted = payload.Record.UserMetadata?.UserAgreementAccepted ?? false;
             bool kvkkAccepted = payload.Record.UserMetadata?.KvkkAccepted ?? false;
             bool commercialConsentAccepted = payload.Record.UserMetadata?.CommercialConsentAccepted ?? false;
+            bool acikRizaDataAbroadAccepted = payload.Record.UserMetadata?.AcikRizaDataAbroadAccepted ?? false;
+            bool acikRizaHealthDataAccepted = payload.Record.UserMetadata?.AcikRizaHealthDataAccepted ?? false;
 
             activity?.SetTag("oauth.account_type", string.IsNullOrWhiteSpace(accountType) ? "none" : accountType);
 
@@ -163,7 +165,7 @@ public static class SyncExternalUserEndpoint
                             else
                             {
                                 LegacyCompany newCompany = LegacyCompany.CreateFromExternalProvider(
-                                    externalId, email, phoneNumber, firstName, lastName, userAgreementAccepted: userAgreementAccepted, kvkkAccepted: kvkkAccepted, commercialConsentAccepted: commercialConsentAccepted
+                                    externalId, email, phoneNumber, firstName, lastName, userAgreementAccepted: userAgreementAccepted, kvkkAccepted: kvkkAccepted, commercialConsentAccepted: commercialConsentAccepted, acikRizaDataAbroadAccepted: acikRizaDataAbroadAccepted
                                 );
                                 await dbContext.Companies.AddAsync(newCompany, cancellationToken);
                                 isNewRecord = true;
@@ -221,7 +223,7 @@ public static class SyncExternalUserEndpoint
                             else
                             {
                                 LegacyEmployee newEmployee = LegacyEmployee.CreateFromExternalProvider(
-                                    externalId, email, phoneNumber, firstName, lastName, userAgreementAccepted: userAgreementAccepted, kvkkAccepted: kvkkAccepted, commercialConsentAccepted: commercialConsentAccepted
+                                    externalId, email, phoneNumber, firstName, lastName, userAgreementAccepted: userAgreementAccepted, kvkkAccepted: kvkkAccepted, commercialConsentAccepted: commercialConsentAccepted, acikRizaDataAbroadAccepted: acikRizaDataAbroadAccepted, acikRizaHealthDataAccepted: acikRizaHealthDataAccepted
                                 );
                                 await dbContext.Employees.AddAsync(newEmployee, cancellationToken);
                                 isNewRecord = true;

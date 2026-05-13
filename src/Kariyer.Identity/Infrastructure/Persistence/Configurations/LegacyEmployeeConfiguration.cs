@@ -31,6 +31,8 @@ public class LegacyEmployeeConfiguration : IEntityTypeConfiguration<LegacyEmploy
         builder.Property(e => e.UserAgreementAccepted).HasColumnName("user_agreement_accepted").HasDefaultValue(false).IsRequired();
         builder.Property(e => e.KvkkAccepted).HasColumnName("kvkk_accepted").HasDefaultValue(false).IsRequired();
         builder.Property(e => e.CommercialConsentAccepted).HasColumnName("commercial_consent_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(e => e.AcikRizaDataAbroadAccepted).HasColumnName("acik_riza_data_abroad_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(e => e.AcikRizaHealthDataAccepted).HasColumnName("acik_riza_health_data_accepted").HasDefaultValue(false).IsRequired();
         
 
         // Strings (allowNull: false)

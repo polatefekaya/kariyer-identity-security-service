@@ -62,6 +62,7 @@ public class LegacyCompanyConfiguration : IEntityTypeConfiguration<LegacyCompany
         builder.Property(c => c.UserAgreementAccepted).HasColumnName("user_agreement_accepted").HasDefaultValue(false).IsRequired();
         builder.Property(c => c.KvkkAccepted).HasColumnName("kvkk_accepted").HasDefaultValue(false).IsRequired();
         builder.Property(c => c.CommercialConsentAccepted).HasColumnName("commercial_consent_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(c => c.AcikRizaDataAbroadAccepted).HasColumnName("acik_riza_data_abroad_accepted").HasDefaultValue(false).IsRequired();
 
         // Integers
         builder.Property(c => c.PriorityScore).HasColumnName("priority_score").HasDefaultValue(0).IsRequired();

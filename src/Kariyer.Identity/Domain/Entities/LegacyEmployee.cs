@@ -57,6 +57,8 @@ public class LegacyEmployee
     public bool CommercialConsentAccepted { get; set; }
     public bool UserAgreementAccepted { get; set; }
     public bool KvkkAccepted { get; set; }
+    public bool AcikRizaDataAbroadAccepted { get; set; }
+    public bool AcikRizaHealthDataAccepted { get; set; }
 
     // Hashes (allowNull: true)
     public string? EmailHash { get; set; }
@@ -84,7 +86,7 @@ public class LegacyEmployee
 
     protected LegacyEmployee() { }
 
-    public static LegacyEmployee CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool userAgreementAccepted, bool kvkkAccepted, bool commercialConsentAccepted)
+    public static LegacyEmployee CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool userAgreementAccepted, bool kvkkAccepted, bool commercialConsentAccepted, bool acikRizaDataAbroadAccepted, bool acikRizaHealthDataAccepted)
     {
         return new LegacyEmployee
         {
@@ -109,6 +111,8 @@ public class LegacyEmployee
             UserAgreementAccepted = userAgreementAccepted,
             KvkkAccepted = kvkkAccepted,
             CommercialConsentAccepted = commercialConsentAccepted,
+            AcikRizaDataAbroadAccepted = acikRizaDataAbroadAccepted,
+            AcikRizaHealthDataAccepted = acikRizaHealthDataAccepted,
         };
     }
     

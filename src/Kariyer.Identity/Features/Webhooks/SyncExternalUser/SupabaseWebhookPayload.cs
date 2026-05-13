@@ -32,7 +32,9 @@ public sealed record SupabaseUserMetadata(
     [property: JsonPropertyName("avatar_url")] string? AvatarUrl,
     [property: JsonPropertyName("kvkk_accepted")] bool KvkkAccepted,
     [property: JsonPropertyName("user_agreement_accepted")] bool UserAgreementAccepted,
-    [property: JsonPropertyName("commercial_consent_accepted")] bool CommercialConsentAccepted
+    [property: JsonPropertyName("commercial_consent_accepted")] bool CommercialConsentAccepted,
+    [property: JsonPropertyName("acik_riza_data_abroad_accepted")] bool AcikRizaDataAbroadAccepted,
+    [property: JsonPropertyName("acik_riza_health_data_accepted")] bool AcikRizaHealthDataAccepted
 );
 
 [JsonSerializable(typeof(DatabaseWebhookPayload))]
