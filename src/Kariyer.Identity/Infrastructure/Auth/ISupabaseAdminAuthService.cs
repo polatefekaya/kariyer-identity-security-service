@@ -9,4 +9,5 @@ internal interface ISupabaseAdminAuthService
     Task SetFrozenStatusAsync(Guid uid, bool isFrozen, CancellationToken cancellationToken);
     Task UpdateEmailAsync(Guid uid, string email, CancellationToken cancellationToken);
     Task UpdatePhoneAsync(Guid uid, string phone, CancellationToken cancellationToken);
+    Task UpdatePasswordAsync(Guid uid, string password, CancellationToken cancellationToken);
 }

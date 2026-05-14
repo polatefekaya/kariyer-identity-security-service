@@ -105,4 +105,11 @@ internal sealed class SupabaseAdminAuthService : ISupabaseAdminAuthService
         IGotrueAdminClient<User> adminAuth = _supabaseClient.AdminAuth(_serviceRoleKey);
         await adminAuth.UpdateUserById(uid.ToString(), attributes);
     }
+
+    public async Task UpdatePasswordAsync(Guid uid, string password, CancellationToken cancellationToken)
+    {
+        AdminUserAttributes attributes = new() { Password = password };
+        IGotrueAdminClient<User> adminAuth = _supabaseClient.AdminAuth(_serviceRoleKey);
+        await adminAuth.UpdateUserById(uid.ToString(), attributes);
+    }
 }

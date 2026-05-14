@@ -1,4 +1,5 @@
 using Kariyer.Identity.Features.AccountCredentials.UpdateEmail;
+using Kariyer.Identity.Features.AccountCredentials.UpdatePassword;
 using Kariyer.Identity.Features.AccountCredentials.UpdatePhone;
 using Kariyer.Identity.Features.AccountCredentials.UpdateUsername;
 
@@ -11,6 +12,7 @@ public static class AccountCredentialsModule
         services.AddScoped<IUpdateEmailService, UpdateEmailService>();
         services.AddScoped<IUpdatePhoneService, UpdatePhoneService>();
         services.AddScoped<IUpdateUsernameService, UpdateUsernameService>();
+        services.AddScoped<IUpdatePasswordService, UpdatePasswordService>();
 
         return services;
     }
@@ -25,6 +27,7 @@ public static class AccountCredentialsModule
         group.MapUpdateEmail();
         group.MapUpdatePhone();
         group.MapUpdateUsername();
+        group.MapUpdatePassword();
 
         return app;
     }
