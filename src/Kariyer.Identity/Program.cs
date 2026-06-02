@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Npgsql;
+using OpenTelemetry;
+using OpenTelemetry.Context.Propagation;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -52,12 +55,22 @@ try
         ?? (string.IsNullOrWhiteSpace(otlpEndpoint) ? string.Empty : otlpEndpoint.TrimEnd('/') + "/v1/logs");
 
     // OTEL_EXPORTER_OTLP_HEADERS format: "key=value,key2=value2"
-    // The OTel SDK reads this automatically for traces/metrics but the Serilog sink does not.
-    Dictionary<string, string> otlpHeaders = (Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_HEADERS") ?? string.Empty)
+    // The OTel SDK reads this automatically via env vars, but when we set Endpoint explicitly
+    // the SDK no longer merges env-var headers — so we pass them explicitly everywhere.
+    string otlpHeadersRaw = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_HEADERS") ?? string.Empty;
+    Dictionary<string, string> otlpHeaders = otlpHeadersRaw
         .Split(',', StringSplitOptions.RemoveEmptyEntries)
         .Select(h => h.Split('=', 2))
         .Where(p => p.Length == 2)
         .ToDictionary(p => p[0].Trim(), p => p[1].Trim());
+
+    // Explicitly set W3C TraceContext + Baggage propagators so incoming traceparent/baggage
+    // headers from the frontend are read and outgoing calls forward them.
+    Sdk.SetDefaultTextMapPropagator(new CompositeTextMapPropagator(new TextMapPropagator[]
+    {
+        new TraceContextPropagator(),
+        new BaggagePropagator()
+    }));
 
     if (!isEfDesignMode)
     {
@@ -177,14 +190,28 @@ try
                 opts.RecordException = true;
             })
             .AddNpgsql()
-            .AddOtlpExporter())
+            .AddOtlpExporter(opts =>
+            {
+                if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+                    opts.Endpoint = new Uri(otlpEndpoint.TrimEnd('/') + "/v1/traces");
+                opts.Protocol = OtlpExportProtocol.HttpProtobuf;
+                if (!string.IsNullOrWhiteSpace(otlpHeadersRaw))
+                    opts.Headers = otlpHeadersRaw;
+            }))
         .WithMetrics(metrics => metrics
             .AddMeter(IdentityDiagnostics.ServiceName)
             .AddMeter(InstrumentationOptions.MeterName)
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddRuntimeInstrumentation()
-            .AddOtlpExporter());
+            .AddOtlpExporter(opts =>
+            {
+                if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+                    opts.Endpoint = new Uri(otlpEndpoint.TrimEnd('/') + "/v1/metrics");
+                opts.Protocol = OtlpExportProtocol.HttpProtobuf;
+                if (!string.IsNullOrWhiteSpace(otlpHeadersRaw))
+                    opts.Headers = otlpHeadersRaw;
+            }));
 
     builder.Services.AddDbContext<IdentityDbContext>(options =>
     {
