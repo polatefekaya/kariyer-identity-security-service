@@ -47,6 +47,18 @@ try
     string otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT") ?? string.Empty;
     string serviceVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
 
+    // Signal-specific endpoint overrides the base; mirrors how the OTel SDK resolves env vars.
+    string otlpLogsEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT")
+        ?? (string.IsNullOrWhiteSpace(otlpEndpoint) ? string.Empty : otlpEndpoint.TrimEnd('/') + "/v1/logs");
+
+    // OTEL_EXPORTER_OTLP_HEADERS format: "key=value,key2=value2"
+    // The OTel SDK reads this automatically for traces/metrics but the Serilog sink does not.
+    Dictionary<string, string> otlpHeaders = (Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_HEADERS") ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+        .Select(h => h.Split('=', 2))
+        .Where(p => p.Length == 2)
+        .ToDictionary(p => p[0].Trim(), p => p[1].Trim());
+
     if (!isEfDesignMode)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(garnetConn, nameof(garnetConn));
@@ -101,7 +113,7 @@ try
                 outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj} {TraceId}{NewLine}{Exception}",
                 restrictedToMinimumLevel: LogEventLevel.Information);
 
-        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        if (!string.IsNullOrWhiteSpace(otlpLogsEndpoint))
         {
             // OTLP: all levels flow here (Verbose through Fatal).
             // IncludedData ensures trace_id / span_id are set as proper OTel log record
@@ -109,8 +121,9 @@ try
             lc.WriteTo.OpenTelemetry(
                 opts =>
                 {
-                    opts.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
+                    opts.Endpoint = otlpLogsEndpoint;
                     opts.Protocol = OtlpProtocol.HttpProtobuf;
+                    opts.Headers = otlpHeaders;
                     opts.IncludedData =
                         IncludedData.TraceIdField |
                         IncludedData.SpanIdField |
@@ -125,6 +138,10 @@ try
                     };
                 },
                 restrictedToMinimumLevel: LogEventLevel.Verbose);
+        }
+        else
+        {
+            Log.Warning("OTEL_EXPORTER_OTLP_ENDPOINT is not set — logs will not be exported to SigNoz.");
         }
     });
 
