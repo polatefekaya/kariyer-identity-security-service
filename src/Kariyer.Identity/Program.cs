@@ -119,24 +119,21 @@ try
             // IncludedData ensures trace_id / span_id are set as proper OTel log record
             // fields (not just string attributes), enabling log-trace correlation in SigNoz.
             lc.WriteTo.OpenTelemetry(
-                opts =>
+                endpoint: otlpLogsEndpoint,
+                protocol: OtlpProtocol.HttpProtobuf,
+                headers: otlpHeaders,
+                resourceAttributes: new Dictionary<string, object>
                 {
-                    opts.Endpoint = otlpLogsEndpoint;
-                    opts.Protocol = OtlpProtocol.HttpProtobuf;
-                    opts.Headers = otlpHeaders;
-                    opts.IncludedData =
-                        IncludedData.TraceIdField |
-                        IncludedData.SpanIdField |
-                        IncludedData.MessageTemplateRenderingsAttribute |
-                        IncludedData.SpecRequiredFields;
-                    opts.ResourceAttributes = new Dictionary<string, object>
-                    {
-                        ["service.name"] = IdentityDiagnostics.ServiceName,
-                        ["service.version"] = serviceVersion,
-                        ["deployment.environment"] = builder.Environment.EnvironmentName,
-                        ["host.name"] = Environment.MachineName,
-                    };
+                    ["service.name"] = IdentityDiagnostics.ServiceName,
+                    ["service.version"] = serviceVersion,
+                    ["deployment.environment"] = builder.Environment.EnvironmentName,
+                    ["host.name"] = Environment.MachineName,
                 },
+                includedData:
+                    IncludedData.TraceIdField |
+                    IncludedData.SpanIdField |
+                    IncludedData.MessageTemplateRenderingsAttribute |
+                    IncludedData.SpecRequiredFields,
                 restrictedToMinimumLevel: LogEventLevel.Verbose);
         }
         else
