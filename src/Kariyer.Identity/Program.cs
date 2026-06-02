@@ -133,7 +133,8 @@ try
                     IncludedData.TraceIdField |
                     IncludedData.SpanIdField |
                     IncludedData.MessageTemplateRenderingsAttribute |
-                    IncludedData.SpecRequiredFields,
+                    IncludedData.SpecRequiredResourceAttributes |
+                    IncludedData.SourceContextAttribute,
                 restrictedToMinimumLevel: LogEventLevel.Verbose);
         }
         else
