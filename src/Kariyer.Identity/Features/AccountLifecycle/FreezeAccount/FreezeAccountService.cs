@@ -20,6 +20,7 @@ internal sealed class FreezeAccountService(
 
     public async Task<IResult> HandleAsync(string uid, ClaimsPrincipal caller, CancellationToken cancellationToken)
     {
+        long startMs = Stopwatch.GetTimestamp();
         using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("FreezeAccount");
         activity?.SetTag("account.uid", uid);
 
@@ -126,10 +127,15 @@ internal sealed class FreezeAccountService(
                 catch (Exception ex) { logger.LogWarning(ex, "Failed to set is_frozen=true in Supabase for {Uid}. DB freeze succeeded.", uid); }
             }
 
+            double elapsedMs = Stopwatch.GetElapsedTime(startMs).TotalMilliseconds;
             IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                 new KeyValuePair<string, object?>("operation", "freeze"),
                 new KeyValuePair<string, object?>("user_type", userType),
-                new KeyValuePair<string, object?>("initiated_by", isAdmin ? "admin" : "self"));
+                new KeyValuePair<string, object?>("initiated_by", isAdmin ? "admin" : "self"),
+                new KeyValuePair<string, object?>("outcome", "success"));
+            IdentityDiagnostics.AccountOperationDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("operation", "freeze"),
+                new KeyValuePair<string, object?>("user_type", userType));
 
             activity?.AddEvent(new ActivityEvent("AccountFrozen"));
             logger.LogInformation("Account {Uid} frozen by {InitiatedBy}.", uid, initiatedBy);
@@ -138,6 +144,7 @@ internal sealed class FreezeAccountService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to freeze account {Uid}.", uid);
             throw;

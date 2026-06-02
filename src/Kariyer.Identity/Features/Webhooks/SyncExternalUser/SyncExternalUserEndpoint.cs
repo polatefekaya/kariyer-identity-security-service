@@ -316,7 +316,17 @@ public static class SyncExternalUserEndpoint
                 }
 
                 activity?.SetStatus(ActivityStatusCode.Ok);
-                IdentityDiagnostics.WebhookProcessedCounter.Add(1, new KeyValuePair<string, object?>("outcome", "success"));
+                IdentityDiagnostics.WebhookProcessedCounter.Add(1,
+                    new KeyValuePair<string, object?>("outcome", "success"),
+                    new KeyValuePair<string, object?>("account_type", accountType));
+
+                if (isNewRecord)
+                {
+                    string syncedAccountType = isCompany ? "company" : isAdmin ? "admin" : "employee";
+                    IdentityDiagnostics.AccountSyncedCounter.Add(1,
+                        new KeyValuePair<string, object?>("account_type", syncedAccountType),
+                        new KeyValuePair<string, object?>("provider", provider));
+                }
 
                 return Results.Ok();
             }

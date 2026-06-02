@@ -62,6 +62,7 @@ internal sealed class RevertCredentialInDbConsumer(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to revert credential in DB for {UserUid} (saga {CorrelationId}).",
                 message.UserUid, message.CorrelationId);

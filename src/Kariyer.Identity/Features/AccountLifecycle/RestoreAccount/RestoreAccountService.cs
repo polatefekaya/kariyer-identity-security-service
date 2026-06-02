@@ -107,6 +107,7 @@ internal sealed class RestoreAccountService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to restore account {Uid}.", uid);
             throw;

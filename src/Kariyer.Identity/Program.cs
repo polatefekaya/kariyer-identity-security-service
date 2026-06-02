@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Threading.RateLimiting;
 using MassTransit;
 using MassTransit.Logging;
@@ -9,6 +10,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
+using Serilog.Sinks.OpenTelemetry;
 using StackExchange.Redis;
 using Kariyer.Identity.Domain.Entities;
 using Kariyer.Identity.Features.Account.AccountDidNotCompleted;
@@ -41,6 +43,8 @@ try
     string rabbitHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
     string externalProviderUrl = builder.Configuration["ExternalProvider:Url"] ?? string.Empty;
     string externalProviderJwt = builder.Configuration["ExternalProvider:JwtSecret"] ?? string.Empty;
+    string otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT") ?? string.Empty;
+    string serviceVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
 
     if (!isEfDesignMode)
     {
@@ -79,19 +83,66 @@ try
         });
     });
 
-    builder.Services.AddSerilog((services, lc) => lc
-        .ReadFrom.Configuration(builder.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext()
-        .WriteTo.Console());
+    builder.Services.AddSerilog((services, lc) =>
+    {
+        // ReadFrom.Configuration applies sinks/enrichers from appsettings (including WithMachineName, WithThreadId)
+        lc.ReadFrom.Configuration(builder.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+            .Enrich.With<TraceContextEnricher>()
+            .WriteTo.Console(
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}");
+
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            lc.WriteTo.OpenTelemetry(opts =>
+            {
+                opts.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
+                opts.Protocol = OtlpProtocol.HttpProtobuf;
+                opts.ResourceAttributes = new Dictionary<string, object>
+                {
+                    ["service.name"] = IdentityDiagnostics.ServiceName,
+                    ["service.version"] = serviceVersion,
+                    ["deployment.environment"] = builder.Environment.EnvironmentName,
+                    ["host.name"] = Environment.MachineName,
+                };
+            });
+        }
+    });
 
     builder.Services.AddOpenTelemetry()
-        .ConfigureResource(resource => resource.AddService(IdentityDiagnostics.ServiceName))
+        .ConfigureResource(resource => resource
+            .AddService(
+                serviceName: IdentityDiagnostics.ServiceName,
+                serviceVersion: serviceVersion,
+                autoGenerateServiceInstanceId: true)
+            .AddAttributes(new Dictionary<string, object>
+            {
+                ["deployment.environment"] = builder.Environment.EnvironmentName,
+                ["host.name"] = Environment.MachineName,
+            }))
         .WithTracing(tracing => tracing
             .AddSource(IdentityDiagnostics.ServiceName)
             .AddSource(DiagnosticHeaders.DefaultListenerName)
-            .AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation()
+            .AddAspNetCoreInstrumentation(opts =>
+            {
+                // Exclude health-check noise from traces
+                opts.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health");
+                // Record exceptions as span events (full stack trace in SigNoz)
+                opts.RecordException = true;
+                opts.EnrichWithHttpRequest = (activity, request) =>
+                {
+                    if (request.HttpContext.Connection.RemoteIpAddress is { } ip)
+                        activity.SetTag("http.client_ip", ip.ToString());
+                    string? ua = request.Headers.UserAgent.ToString();
+                    if (!string.IsNullOrEmpty(ua))
+                        activity.SetTag("http.user_agent", ua);
+                };
+            })
+            .AddHttpClientInstrumentation(opts =>
+            {
+                opts.RecordException = true;
+            })
             .AddNpgsql()
             .AddOtlpExporter())
         .WithMetrics(metrics => metrics
@@ -99,6 +150,7 @@ try
             .AddMeter(InstrumentationOptions.MeterName)
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
+            .AddRuntimeInstrumentation()
             .AddOtlpExporter());
 
     builder.Services.AddDbContext<IdentityDbContext>(options =>
@@ -207,6 +259,16 @@ try
                 }));
 
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+        options.OnRejected = (ctx, _) =>
+        {
+            string policy = ctx.HttpContext.GetEndpoint()?.Metadata
+                .GetMetadata<Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute>()?.PolicyName
+                ?? "unknown";
+            IdentityDiagnostics.RateLimitRejectedCounter.Add(1,
+                new KeyValuePair<string, object?>("policy", policy));
+            return ValueTask.CompletedTask;
+        };
     });
 
     builder.Services.AddSupabaseJwtAuthentication(builder.Configuration, Log.Logger);
@@ -293,6 +355,7 @@ try
     app.UseSerilogRequestLogging();
     app.UseRouting();
     app.UseCors("StrictFrontendPolicy");
+    app.UseMiddleware<BaggageEnricherMiddleware>();
     app.UseAuthentication();
     app.UseAuthorization();
     app.UseRateLimiter();

@@ -18,8 +18,10 @@ internal sealed class UpdatePhoneService(
 {
     public async Task<IResult> HandleAsync(string uid, UpdatePhoneRequest request, ClaimsPrincipal caller, CancellationToken cancellationToken)
     {
+        long startMs = Stopwatch.GetTimestamp();
         using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("UpdatePhone");
         activity?.SetTag("account.uid", uid);
+        activity?.SetTag("credential.field", "phone");
 
         try
         {
@@ -126,9 +128,14 @@ internal sealed class UpdatePhoneService(
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            IdentityDiagnostics.AccountLifecycleCounter.Add(1,
-                new KeyValuePair<string, object?>("operation", "credential_phone_updated"),
-                new KeyValuePair<string, object?>("initiated_by", isAdmin ? "admin" : "self"));
+            double elapsedMs = Stopwatch.GetElapsedTime(startMs).TotalMilliseconds;
+            IdentityDiagnostics.CredentialUpdateCounter.Add(1,
+                new KeyValuePair<string, object?>("field", "phone"),
+                new KeyValuePair<string, object?>("account_type", userType),
+                new KeyValuePair<string, object?>("initiated_by", isAdmin ? "admin" : "self"),
+                new KeyValuePair<string, object?>("outcome", "success"));
+            IdentityDiagnostics.CredentialOperationDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("field", "phone"));
 
             activity?.AddEvent(new ActivityEvent("PhoneUpdateInitiated"));
             logger.LogInformation("Phone update initiated for account {Uid}.", uid);
@@ -137,7 +144,11 @@ internal sealed class UpdatePhoneService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            IdentityDiagnostics.CredentialUpdateCounter.Add(1,
+                new KeyValuePair<string, object?>("field", "phone"),
+                new KeyValuePair<string, object?>("outcome", "error"));
             logger.LogError(ex, "Failed to update phone for account {Uid}.", uid);
             throw;
         }

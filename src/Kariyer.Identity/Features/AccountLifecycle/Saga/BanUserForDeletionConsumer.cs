@@ -36,6 +36,7 @@ internal sealed class BanUserForDeletionConsumer(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to ban user {UserUid} (ExternalId: {ExternalId}) in Supabase.",
                 message.UserUid, message.ExternalId);

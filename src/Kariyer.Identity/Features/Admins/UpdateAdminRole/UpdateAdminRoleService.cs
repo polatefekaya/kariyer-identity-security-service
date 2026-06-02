@@ -10,20 +10,46 @@ internal sealed class UpdateAdminRoleService(IdentityDbContext dbContext) : IUpd
 {
     public async Task<bool> HandleAsync(string uid, string newRole, CancellationToken cancellationToken)
     {
+        long startMs = Stopwatch.GetTimestamp();
         using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("UpdateAdminRole");
         activity?.SetTag("admin.uid", uid);
         activity?.SetTag("admin.new_role", newRole);
 
-        LegacyAdmin? admin = await dbContext.Admins
-            .FirstOrDefaultAsync(a => a.Uid == uid && !a.IsDeleted, cancellationToken);
+        try
+        {
+            LegacyAdmin? admin = await dbContext.Admins
+                .FirstOrDefaultAsync(a => a.Uid == uid && !a.IsDeleted, cancellationToken);
 
-        if (admin == null) return false;
+            if (admin is null)
+            {
+                activity?.SetTag("admin.found", false);
+                return false;
+            }
 
-        admin.UpdateRole(newRole);
+            activity?.SetTag("admin.found", true);
+            activity?.SetTag("admin.previous_role", admin.AdminRole);
+            admin.UpdateRole(newRole);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        IdentityDiagnostics.AdminOperationsCounter.Add(1, new KeyValuePair<string, object?>("operation", "update_role"));
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        return true;
+            double elapsedMs = Stopwatch.GetElapsedTime(startMs).TotalMilliseconds;
+            IdentityDiagnostics.AdminOperationsCounter.Add(1,
+                new KeyValuePair<string, object?>("operation", "update_role"),
+                new KeyValuePair<string, object?>("outcome", "success"));
+            IdentityDiagnostics.AdminOperationDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("operation", "update_role"));
+
+            activity?.AddEvent(new ActivityEvent("AdminRoleUpdated"));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            activity?.AddException(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            IdentityDiagnostics.AdminOperationsCounter.Add(1,
+                new KeyValuePair<string, object?>("operation", "update_role"),
+                new KeyValuePair<string, object?>("outcome", "error"));
+            throw;
+        }
     }
 }

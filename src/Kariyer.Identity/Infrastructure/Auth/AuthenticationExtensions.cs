@@ -1,6 +1,7 @@
+using System.Diagnostics;
 using System.Security.Claims;
-using System.Text;
 using System.Text.Json;
+using Kariyer.Identity.Infrastructure.Telemetry;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using ILogger = Serilog.ILogger;
@@ -39,10 +40,18 @@ public static class AuthenticationExtensions
                             OnAuthenticationFailed = context =>
                             {
                                 logger.Warning("JWT Validation Failed: {Message}", context.Exception.Message);
+
+                                Activity.Current?.SetTag("auth.failure_reason", context.Exception.GetType().Name);
+                                IdentityDiagnostics.AuthValidationCounter.Add(1,
+                                    new KeyValuePair<string, object?>("outcome", "failure"),
+                                    new KeyValuePair<string, object?>("reason", context.Exception.GetType().Name));
+
                                 return Task.CompletedTask;
                             },
                             OnTokenValidated = context =>
                             {
+                                string? accountType = null;
+
                                 if (context.Principal?.Identity is ClaimsIdentity identity)
                                 {
                                     Claim? userMetaDataClaim = identity.FindFirst("user_metadata");
@@ -57,6 +66,7 @@ public static class AuthenticationExtensions
                                             string? role = accountTypeElement.GetString();
                                             if (!string.IsNullOrWhiteSpace(role))
                                             {
+                                                accountType = role;
                                                 Claim? existingRole = identity.FindFirst("role");
                                                 if (existingRole is not null)
                                                     identity.RemoveClaim(existingRole);
@@ -65,6 +75,10 @@ public static class AuthenticationExtensions
                                         }
                                     }
                                 }
+
+                                IdentityDiagnostics.AuthValidationCounter.Add(1,
+                                    new KeyValuePair<string, object?>("outcome", "success"),
+                                    new KeyValuePair<string, object?>("account_type", accountType ?? "unknown"));
 
                                 return Task.CompletedTask;
                             }

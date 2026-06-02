@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using System.Text.Json;
+using Kariyer.Identity.Infrastructure.Telemetry;
 using Yarp.ReverseProxy.Transforms;
 
 namespace Kariyer.Identity.Infrastructure.Gateway;
@@ -12,6 +14,9 @@ public static class YarpExtensions
             .LoadFromConfig(configuration.GetSection("ReverseProxy"))
             .AddTransforms(builderContext =>
             {
+                string routeId = builderContext.Route.RouteId;
+                string? clusterId = builderContext.Cluster?.ClusterId;
+
                 builderContext.AddRequestTransform(transformContext =>
                 {
                     ClaimsPrincipal user = transformContext.HttpContext.User;
@@ -72,6 +77,28 @@ public static class YarpExtensions
                     {
                         transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-User-Role", "guest");
                     }
+
+                    // Enrich the active YARP proxy span with gateway-specific context
+                    Activity? proxyActivity = Activity.Current;
+                    if (proxyActivity is not null)
+                    {
+                        proxyActivity.SetTag("gateway.route", routeId);
+                        proxyActivity.SetTag("gateway.upstream_cluster", clusterId);
+
+                        if (user.Identity is { IsAuthenticated: true })
+                        {
+                            string? gatewayUserId = user.FindFirst("sub")?.Value
+                                ?? user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                            string? gatewayRole = user.FindFirst("role")?.Value;
+                            if (gatewayUserId is not null) proxyActivity.SetTag("gateway.user.id", gatewayUserId);
+                            if (gatewayRole is not null) proxyActivity.SetTag("gateway.user.role", gatewayRole);
+                        }
+                    }
+
+                    IdentityDiagnostics.ProxyRequestCounter.Add(1,
+                        new KeyValuePair<string, object?>("route", routeId),
+                        new KeyValuePair<string, object?>("cluster", clusterId ?? "unknown"),
+                        new KeyValuePair<string, object?>("authenticated", user.Identity?.IsAuthenticated == true ? "true" : "false"));
 
                     return ValueTask.CompletedTask;
                 });

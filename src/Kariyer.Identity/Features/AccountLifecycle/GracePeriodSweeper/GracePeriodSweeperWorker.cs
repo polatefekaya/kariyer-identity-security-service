@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Kariyer.Identity.Domain.Entities;
 using Kariyer.Identity.Infrastructure.Persistence;
+using Kariyer.Identity.Infrastructure.Telemetry;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -44,11 +46,29 @@ public sealed class GracePeriodSweeperWorker : BackgroundService
 
             try
             {
-                await ProcessExpiredGracePeriodsAsync(stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process expired grace period deletions.");
+                long startMs = Stopwatch.GetTimestamp();
+                using Activity? sweeperActivity = IdentityDiagnostics.ActivitySource
+                    .StartActivity("sweeper.grace_period_deletions", ActivityKind.Internal);
+                sweeperActivity?.SetTag("sweeper.host", Environment.MachineName);
+
+                try
+                {
+                    await ProcessExpiredGracePeriodsAsync(stoppingToken);
+                    sweeperActivity?.SetStatus(ActivityStatusCode.Ok);
+                }
+                catch (Exception ex)
+                {
+                    sweeperActivity?.AddException(ex);
+                    sweeperActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                    _logger.LogError(ex, "Failed to process expired grace period deletions.");
+                }
+                finally
+                {
+                    double elapsedMs = Stopwatch.GetElapsedTime(startMs).TotalMilliseconds;
+                    IdentityDiagnostics.SweeperBatchDuration.Record(elapsedMs,
+                        new KeyValuePair<string, object?>("sweeper", "grace_period_deletions"));
+                    sweeperActivity?.SetTag("sweeper.duration_ms", elapsedMs);
+                }
             }
             finally
             {
@@ -103,6 +123,10 @@ public sealed class GracePeriodSweeperWorker : BackgroundService
                     await transaction.CommitAsync(stoppingToken);
 
                     _logger.LogInformation("Grace period sweeper batch {Batch}: dispatched {Count} deletion executions.", batchNumber, expiredSagas.Count);
+
+                    IdentityDiagnostics.SweeperProcessedCounter.Add(expiredSagas.Count,
+                        new KeyValuePair<string, object?>("sweeper", "grace_period_deletions"),
+                        new KeyValuePair<string, object?>("outcome", "dispatched"));
                 }
                 catch (Exception ex)
                 {

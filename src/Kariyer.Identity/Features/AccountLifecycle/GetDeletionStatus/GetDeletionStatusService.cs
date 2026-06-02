@@ -60,6 +60,7 @@ internal sealed class GetDeletionStatusService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to get deletion status for account {Uid}.", uid);
             throw;

@@ -55,6 +55,7 @@ internal sealed class UpdateCredentialInSupabaseConsumer(
             }
         }
 
+        if (lastEx is not null) activity?.AddException(lastEx);
         activity?.SetStatus(ActivityStatusCode.Error, lastEx?.Message);
         logger.LogError(lastEx,
             "Supabase credential update failed after {MaxAttempts} attempts for CorrelationId={CorrelationId}. Triggering DB compensation.",

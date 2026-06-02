@@ -21,8 +21,10 @@ internal sealed partial class UpdateUsernameService(
 
     public async Task<IResult> HandleAsync(string uid, UpdateUsernameRequest request, ClaimsPrincipal caller, CancellationToken cancellationToken)
     {
+        long startMs = Stopwatch.GetTimestamp();
         using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("UpdateUsername");
         activity?.SetTag("account.uid", uid);
+        activity?.SetTag("credential.field", "username");
 
         try
         {
@@ -114,9 +116,14 @@ internal sealed partial class UpdateUsernameService(
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            IdentityDiagnostics.AccountLifecycleCounter.Add(1,
-                new KeyValuePair<string, object?>("operation", "credential_username_updated"),
-                new KeyValuePair<string, object?>("initiated_by", isAdmin ? "admin" : "self"));
+            double elapsedMs = Stopwatch.GetElapsedTime(startMs).TotalMilliseconds;
+            IdentityDiagnostics.CredentialUpdateCounter.Add(1,
+                new KeyValuePair<string, object?>("field", "username"),
+                new KeyValuePair<string, object?>("account_type", userType),
+                new KeyValuePair<string, object?>("initiated_by", isAdmin ? "admin" : "self"),
+                new KeyValuePair<string, object?>("outcome", "success"));
+            IdentityDiagnostics.CredentialOperationDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("field", "username"));
 
             activity?.AddEvent(new ActivityEvent("UsernameUpdated"));
             logger.LogInformation("Username updated for account {Uid}.", uid);
@@ -125,7 +132,11 @@ internal sealed partial class UpdateUsernameService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            IdentityDiagnostics.CredentialUpdateCounter.Add(1,
+                new KeyValuePair<string, object?>("field", "username"),
+                new KeyValuePair<string, object?>("outcome", "error"));
             logger.LogError(ex, "Failed to update username for account {Uid}.", uid);
             throw;
         }

@@ -56,6 +56,7 @@ internal sealed class CreateAdminService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to create admin {Email}", request.Email);
             throw;

@@ -66,6 +66,10 @@ public class AccountDeletionSaga : MassTransitStateMachine<AccountDeletionSagaSt
                     IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                         new KeyValuePair<string, object?>("operation", "deletion_requested"),
                         new KeyValuePair<string, object?>("initiated_by", ctx.Saga.InitiatedBy));
+                    IdentityDiagnostics.SagaTransitionCounter.Add(1,
+                        new KeyValuePair<string, object?>("saga", "account_deletion"),
+                        new KeyValuePair<string, object?>("to_state", "DeletionRequested"),
+                        new KeyValuePair<string, object?>("initiated_by", ctx.Saga.InitiatedBy));
                 })
                 .PublishAsync(ctx => ctx.Init<BanUserForDeletionCommand>(new
                 {
@@ -115,6 +119,10 @@ public class AccountDeletionSaga : MassTransitStateMachine<AccountDeletionSagaSt
                     activity?.SetTag("account.uid", ctx.Saga.UserUid);
                     IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                         new KeyValuePair<string, object?>("operation", "grace_period_expired"));
+                    IdentityDiagnostics.SagaTransitionCounter.Add(1,
+                        new KeyValuePair<string, object?>("saga", "account_deletion"),
+                        new KeyValuePair<string, object?>("to_state", "Executing"),
+                        new KeyValuePair<string, object?>("trigger", "grace_period_expired"));
                 })
                 .PublishAsync(ctx => ctx.Init<DeleteUserPermanentlyCommand>(new
                 {
@@ -136,6 +144,9 @@ public class AccountDeletionSaga : MassTransitStateMachine<AccountDeletionSagaSt
                     activity?.SetTag("cancelled_by", ctx.Saga.CancelledByUid);
                     IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                         new KeyValuePair<string, object?>("operation", "deletion_cancelling"));
+                    IdentityDiagnostics.SagaTransitionCounter.Add(1,
+                        new KeyValuePair<string, object?>("saga", "account_deletion"),
+                        new KeyValuePair<string, object?>("to_state", "Cancelling"));
                 })
                 .PublishAsync(ctx => ctx.Init<UnbanUserCommand>(new
                 {
@@ -156,6 +167,9 @@ public class AccountDeletionSaga : MassTransitStateMachine<AccountDeletionSagaSt
                     activity?.SetTag("account.uid", ctx.Saga.UserUid);
                     IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                         new KeyValuePair<string, object?>("operation", "deletion_executed"));
+                    IdentityDiagnostics.SagaTransitionCounter.Add(1,
+                        new KeyValuePair<string, object?>("saga", "account_deletion"),
+                        new KeyValuePair<string, object?>("to_state", "Deleted"));
                 })
                 .TransitionTo(Deleted)
         );
@@ -168,6 +182,9 @@ public class AccountDeletionSaga : MassTransitStateMachine<AccountDeletionSagaSt
                     activity?.SetTag("account.uid", ctx.Saga.UserUid);
                     IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                         new KeyValuePair<string, object?>("operation", "deletion_cancelled"));
+                    IdentityDiagnostics.SagaTransitionCounter.Add(1,
+                        new KeyValuePair<string, object?>("saga", "account_deletion"),
+                        new KeyValuePair<string, object?>("to_state", "Cancelled"));
                 })
                 .PublishAsync(ctx => ctx.Init<AccountDeletionCancelledEvent>(new
                 {

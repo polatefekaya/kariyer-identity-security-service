@@ -66,6 +66,7 @@ internal sealed class BootstrapAdminService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to bootstrap system with admin {Email}", request.Email);
             throw; 

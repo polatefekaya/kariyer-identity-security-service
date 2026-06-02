@@ -19,8 +19,10 @@ internal sealed class UpdateEmailService(
 {
     public async Task<IResult> HandleAsync(string uid, UpdateEmailRequest request, ClaimsPrincipal caller, CancellationToken cancellationToken)
     {
+        long startMs = Stopwatch.GetTimestamp();
         using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("UpdateEmail");
         activity?.SetTag("account.uid", uid);
+        activity?.SetTag("credential.field", "email");
 
         try
         {
@@ -133,9 +135,14 @@ internal sealed class UpdateEmailService(
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            IdentityDiagnostics.AccountLifecycleCounter.Add(1,
-                new KeyValuePair<string, object?>("operation", "credential_email_updated"),
-                new KeyValuePair<string, object?>("initiated_by", isAdmin ? "admin" : "self"));
+            double elapsedMs = Stopwatch.GetElapsedTime(startMs).TotalMilliseconds;
+            IdentityDiagnostics.CredentialUpdateCounter.Add(1,
+                new KeyValuePair<string, object?>("field", "email"),
+                new KeyValuePair<string, object?>("account_type", userType),
+                new KeyValuePair<string, object?>("initiated_by", isAdmin ? "admin" : "self"),
+                new KeyValuePair<string, object?>("outcome", "success"));
+            IdentityDiagnostics.CredentialOperationDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("field", "email"));
 
             activity?.AddEvent(new ActivityEvent("EmailUpdateInitiated"));
             logger.LogInformation("Email update initiated for account {Uid}.", uid);
@@ -144,7 +151,11 @@ internal sealed class UpdateEmailService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            IdentityDiagnostics.CredentialUpdateCounter.Add(1,
+                new KeyValuePair<string, object?>("field", "email"),
+                new KeyValuePair<string, object?>("outcome", "error"));
             logger.LogError(ex, "Failed to update email for account {Uid}.", uid);
             throw;
         }

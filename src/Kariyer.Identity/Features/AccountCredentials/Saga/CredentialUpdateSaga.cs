@@ -55,6 +55,10 @@ public class CredentialUpdateSaga : MassTransitStateMachine<CredentialUpdateSaga
                     activity?.SetTag("saga.correlation_id", ctx.Saga.CorrelationId.ToString());
                     activity?.SetTag("account.uid", ctx.Saga.UserUid);
                     activity?.SetTag("credential.type", ctx.Saga.CredentialType);
+                    IdentityDiagnostics.SagaTransitionCounter.Add(1,
+                        new KeyValuePair<string, object?>("saga", "credential_update"),
+                        new KeyValuePair<string, object?>("to_state", "AwaitingSupabase"),
+                        new KeyValuePair<string, object?>("credential_type", ctx.Saga.CredentialType));
                 })
                 .PublishAsync(ctx => ctx.Init<UpdateCredentialInSupabaseCommand>(new
                 {
@@ -78,6 +82,10 @@ public class CredentialUpdateSaga : MassTransitStateMachine<CredentialUpdateSaga
                     IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                         new KeyValuePair<string, object?>("operation", $"credential_{ctx.Saga.CredentialType}_supabase_synced"),
                         new KeyValuePair<string, object?>("initiated_by", ctx.Saga.InitiatedBy));
+                    IdentityDiagnostics.SagaTransitionCounter.Add(1,
+                        new KeyValuePair<string, object?>("saga", "credential_update"),
+                        new KeyValuePair<string, object?>("to_state", "SupabaseUpdated"),
+                        new KeyValuePair<string, object?>("credential_type", ctx.Saga.CredentialType));
                 })
                 .IfElse(
                     ctx => ctx.Saga.CredentialType == "email",
@@ -112,6 +120,10 @@ public class CredentialUpdateSaga : MassTransitStateMachine<CredentialUpdateSaga
                     activity?.SetStatus(ActivityStatusCode.Error, "Supabase credential update failed — initiating DB compensation.");
                     IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                         new KeyValuePair<string, object?>("operation", $"credential_{ctx.Saga.CredentialType}_supabase_failed"));
+                    IdentityDiagnostics.SagaTransitionCounter.Add(1,
+                        new KeyValuePair<string, object?>("saga", "credential_update"),
+                        new KeyValuePair<string, object?>("to_state", "Compensating"),
+                        new KeyValuePair<string, object?>("credential_type", ctx.Saga.CredentialType));
                 })
                 .PublishAsync(ctx => ctx.Init<RevertCredentialInDbCommand>(new
                 {
@@ -136,6 +148,10 @@ public class CredentialUpdateSaga : MassTransitStateMachine<CredentialUpdateSaga
                     activity?.SetTag("credential.type", ctx.Saga.CredentialType);
                     IdentityDiagnostics.AccountLifecycleCounter.Add(1,
                         new KeyValuePair<string, object?>("operation", $"credential_{ctx.Saga.CredentialType}_compensated"));
+                    IdentityDiagnostics.SagaTransitionCounter.Add(1,
+                        new KeyValuePair<string, object?>("saga", "credential_update"),
+                        new KeyValuePair<string, object?>("to_state", "Compensated"),
+                        new KeyValuePair<string, object?>("credential_type", ctx.Saga.CredentialType));
                 })
                 .TransitionTo(Compensated)
         );

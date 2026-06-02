@@ -49,6 +49,7 @@ internal sealed class CancelDeletionService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to cancel deletion for account {Uid}.", uid);
             throw;

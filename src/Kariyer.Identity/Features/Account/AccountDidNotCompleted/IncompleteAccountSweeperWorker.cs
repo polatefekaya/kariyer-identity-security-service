@@ -1,10 +1,12 @@
-using StackExchange.Redis;
-using Microsoft.EntityFrameworkCore;
-using MassTransit;
-using Kariyer.Identity.Infrastructure.Persistence;
+using System.Diagnostics;
 using Kariyer.Identity.Domain.Entities;
+using Kariyer.Identity.Infrastructure.Persistence;
+using Kariyer.Identity.Infrastructure.Telemetry;
 using Kariyer.Messaging.Contracts.Account;
+using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using StackExchange.Redis;
 
 namespace Kariyer.Identity.Features.Account.AccountDidNotCompleted;
 
@@ -45,11 +47,29 @@ public sealed class IncompleteAccountSweeperWorker : BackgroundService
 
             try
             {
-                await ProcessIncompleteAccountsAsync(stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process incomplete accounts.");
+                long startMs = Stopwatch.GetTimestamp();
+                using Activity? sweeperActivity = IdentityDiagnostics.ActivitySource
+                    .StartActivity("sweeper.incomplete_accounts", ActivityKind.Internal);
+                sweeperActivity?.SetTag("sweeper.host", Environment.MachineName);
+
+                try
+                {
+                    await ProcessIncompleteAccountsAsync(stoppingToken);
+                    sweeperActivity?.SetStatus(ActivityStatusCode.Ok);
+                }
+                catch (Exception ex)
+                {
+                    sweeperActivity?.AddException(ex);
+                    sweeperActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                    _logger.LogError(ex, "Failed to process incomplete accounts.");
+                }
+                finally
+                {
+                    double elapsedMs = Stopwatch.GetElapsedTime(startMs).TotalMilliseconds;
+                    IdentityDiagnostics.SweeperBatchDuration.Record(elapsedMs,
+                        new KeyValuePair<string, object?>("sweeper", "incomplete_accounts"));
+                    sweeperActivity?.SetTag("sweeper.duration_ms", elapsedMs);
+                }
             }
             finally
             {
@@ -225,6 +245,32 @@ public sealed class IncompleteAccountSweeperWorker : BackgroundService
                     _logger.LogTrace("[DIAG] transaction.CommitAsync() completed for batch {Batch}. TransactionId: {TransactionId}", batchNumber, transaction.TransactionId);
 
                     _logger.LogInformation("Swept {Count} incomplete accounts in current batch.", totalProcessedInBatch);
+
+                    int companyStep1Count = companiesToRemindStep1.Count;
+                    int companyStep2Count = companiesToRemindStep2.Count;
+                    int employeeStep1Count = employeesToRemindStep1.Count;
+                    int employeeStep2Count = employeesToRemindStep2.Count;
+
+                    if (companyStep1Count > 0)
+                        IdentityDiagnostics.SweeperProcessedCounter.Add(companyStep1Count,
+                            new KeyValuePair<string, object?>("sweeper", "incomplete_accounts"),
+                            new KeyValuePair<string, object?>("account_type", "company"),
+                            new KeyValuePair<string, object?>("reminder_step", "1"));
+                    if (companyStep2Count > 0)
+                        IdentityDiagnostics.SweeperProcessedCounter.Add(companyStep2Count,
+                            new KeyValuePair<string, object?>("sweeper", "incomplete_accounts"),
+                            new KeyValuePair<string, object?>("account_type", "company"),
+                            new KeyValuePair<string, object?>("reminder_step", "2"));
+                    if (employeeStep1Count > 0)
+                        IdentityDiagnostics.SweeperProcessedCounter.Add(employeeStep1Count,
+                            new KeyValuePair<string, object?>("sweeper", "incomplete_accounts"),
+                            new KeyValuePair<string, object?>("account_type", "employee"),
+                            new KeyValuePair<string, object?>("reminder_step", "1"));
+                    if (employeeStep2Count > 0)
+                        IdentityDiagnostics.SweeperProcessedCounter.Add(employeeStep2Count,
+                            new KeyValuePair<string, object?>("sweeper", "incomplete_accounts"),
+                            new KeyValuePair<string, object?>("account_type", "employee"),
+                            new KeyValuePair<string, object?>("reminder_step", "2"));
                 }
                 catch (Exception ex)
                 {

@@ -16,8 +16,10 @@ internal sealed class UpdatePasswordService(
 {
     public async Task<IResult> HandleAsync(string uid, UpdatePasswordRequest request, ClaimsPrincipal caller, CancellationToken ct)
     {
+        long startMs = Stopwatch.GetTimestamp();
         using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("UpdatePassword");
         activity?.SetTag("account.uid", uid);
+        activity?.SetTag("credential.field", "password");
 
         try
         {
@@ -73,9 +75,14 @@ internal sealed class UpdatePasswordService(
 
             await supabaseAuth.UpdatePasswordAsync(externalId, request.Password, ct);
 
-            IdentityDiagnostics.AccountLifecycleCounter.Add(1,
-                new KeyValuePair<string, object?>("operation", "credential_password_updated"),
-                new KeyValuePair<string, object?>("initiated_by", "admin"));
+            double elapsedMs = Stopwatch.GetElapsedTime(startMs).TotalMilliseconds;
+            IdentityDiagnostics.CredentialUpdateCounter.Add(1,
+                new KeyValuePair<string, object?>("field", "password"),
+                new KeyValuePair<string, object?>("account_type", userType),
+                new KeyValuePair<string, object?>("initiated_by", "admin"),
+                new KeyValuePair<string, object?>("outcome", "success"));
+            IdentityDiagnostics.CredentialOperationDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("field", "password"));
 
             activity?.AddEvent(new ActivityEvent("PasswordUpdated"));
             logger.LogInformation("Password updated for account {Uid}.", uid);
@@ -84,7 +91,11 @@ internal sealed class UpdatePasswordService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            IdentityDiagnostics.CredentialUpdateCounter.Add(1,
+                new KeyValuePair<string, object?>("field", "password"),
+                new KeyValuePair<string, object?>("outcome", "error"));
             logger.LogError(ex, "Failed to update password for account {Uid}.", uid);
             throw;
         }

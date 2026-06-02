@@ -39,6 +39,9 @@ internal sealed class GetAdminsService(IdentityDbContext dbContext) : IGetAdmins
             .Take(limit)
             .ToListAsync(cancellationToken);
 
+        activity?.SetTag("query.total_count", totalCount);
+        activity?.SetTag("query.result_count", admins.Count);
+
         List<AdminDto> dtos = admins.Select(a => new AdminDto(
             Uid: a.Uid,
             Name: a.Name ?? string.Empty,

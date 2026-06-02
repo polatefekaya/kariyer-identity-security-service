@@ -54,6 +54,7 @@ internal sealed class GetDeletionStatusBatchService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to get batch deletion statuses.");
             throw;

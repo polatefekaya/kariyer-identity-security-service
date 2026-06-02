@@ -118,6 +118,7 @@ internal sealed class RequestDeletionService(
         }
         catch (Exception ex)
         {
+            activity?.AddException(ex);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             logger.LogError(ex, "Failed to request deletion for account {Uid}.", uid);
             throw;

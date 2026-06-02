@@ -8,36 +8,61 @@ using Microsoft.EntityFrameworkCore;
 namespace Kariyer.Identity.Features.Admins.UpdateAdminStatus;
 
 internal sealed class UpdateAdminStatusService(
-    IdentityDbContext dbContext, 
+    IdentityDbContext dbContext,
     ISupabaseAdminAuthService supabaseAuth) : IUpdateAdminStatusService
 {
     public async Task<bool> HandleAsync(string uid, string status, CancellationToken cancellationToken)
     {
+        long startMs = Stopwatch.GetTimestamp();
         using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("UpdateAdminStatus");
         activity?.SetTag("admin.uid", uid);
         activity?.SetTag("admin.new_status", status);
 
-        LegacyAdmin? admin = await dbContext.Admins
-            .FirstOrDefaultAsync(a => a.Uid == uid && !a.IsDeleted, cancellationToken);
-
-        if (admin == null || !admin.ExternalId.HasValue) return false;
-
-        bool targetIsActive = status.Equals("active", StringComparison.OrdinalIgnoreCase);
-
-        if (targetIsActive)
+        try
         {
-            await supabaseAuth.UnbanUserAsync(admin.ExternalId.Value, cancellationToken);
+            LegacyAdmin? admin = await dbContext.Admins
+                .FirstOrDefaultAsync(a => a.Uid == uid && !a.IsDeleted, cancellationToken);
+
+            if (admin is null || !admin.ExternalId.HasValue)
+            {
+                activity?.SetTag("admin.found", false);
+                return false;
+            }
+
+            activity?.SetTag("admin.found", true);
+            activity?.SetTag("admin.external_id", admin.ExternalId.Value.ToString());
+
+            bool targetIsActive = status.Equals("active", StringComparison.OrdinalIgnoreCase);
+
+            if (targetIsActive)
+                await supabaseAuth.UnbanUserAsync(admin.ExternalId.Value, cancellationToken);
+            else
+                await supabaseAuth.BanUserAsync(admin.ExternalId.Value, cancellationToken);
+
+            activity?.AddEvent(new ActivityEvent("SupabaseStatusUpdated"));
+
+            admin.UpdateIsActive(targetIsActive);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            double elapsedMs = Stopwatch.GetElapsedTime(startMs).TotalMilliseconds;
+            IdentityDiagnostics.AdminOperationsCounter.Add(1,
+                new KeyValuePair<string, object?>("operation", "update_status"),
+                new KeyValuePair<string, object?>("new_status", targetIsActive ? "active" : "banned"),
+                new KeyValuePair<string, object?>("outcome", "success"));
+            IdentityDiagnostics.AdminOperationDuration.Record(elapsedMs,
+                new KeyValuePair<string, object?>("operation", "update_status"));
+
+            activity?.AddEvent(new ActivityEvent("AdminStatusUpdated"));
+            return true;
         }
-        else
+        catch (Exception ex)
         {
-            await supabaseAuth.BanUserAsync(admin.ExternalId.Value, cancellationToken);
+            activity?.AddException(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            IdentityDiagnostics.AdminOperationsCounter.Add(1,
+                new KeyValuePair<string, object?>("operation", "update_status"),
+                new KeyValuePair<string, object?>("outcome", "error"));
+            throw;
         }
-
-        admin.UpdateIsActive(targetIsActive);
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        IdentityDiagnostics.AdminOperationsCounter.Add(1, new KeyValuePair<string, object?>("operation", "update_status"));
-
-        return true;
     }
 }
