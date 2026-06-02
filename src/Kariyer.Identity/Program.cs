@@ -10,6 +10,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
+using Serilog.Events;
 using Serilog.Sinks.OpenTelemetry;
 using StackExchange.Redis;
 using Kariyer.Identity.Domain.Entities;
@@ -85,28 +86,41 @@ try
 
     builder.Services.AddSerilog((services, lc) =>
     {
-        // ReadFrom.Configuration applies sinks/enrichers from appsettings (including WithMachineName, WithThreadId)
+        // ReadFrom.Configuration applies MinimumLevel and Enrich from appsettings.
+        // Global minimum is Verbose — sinks apply their own per-level restrictions below.
         lc.ReadFrom.Configuration(builder.Configuration)
             .ReadFrom.Services(services)
             .Enrich.FromLogContext()
             .Enrich.With<TraceContextEnricher>()
+            // Console: human-readable, restricted to Information+ to avoid noise
             .WriteTo.Console(
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}");
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj} {TraceId}{NewLine}{Exception}",
+                restrictedToMinimumLevel: LogEventLevel.Information);
 
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
-            lc.WriteTo.OpenTelemetry(opts =>
-            {
-                opts.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
-                opts.Protocol = OtlpProtocol.HttpProtobuf;
-                opts.ResourceAttributes = new Dictionary<string, object>
+            // OTLP: all levels flow here (Verbose through Fatal).
+            // IncludedData ensures trace_id / span_id are set as proper OTel log record
+            // fields (not just string attributes), enabling log-trace correlation in SigNoz.
+            lc.WriteTo.OpenTelemetry(
+                opts =>
                 {
-                    ["service.name"] = IdentityDiagnostics.ServiceName,
-                    ["service.version"] = serviceVersion,
-                    ["deployment.environment"] = builder.Environment.EnvironmentName,
-                    ["host.name"] = Environment.MachineName,
-                };
-            });
+                    opts.Endpoint = otlpEndpoint.TrimEnd('/') + "/v1/logs";
+                    opts.Protocol = OtlpProtocol.HttpProtobuf;
+                    opts.IncludedData =
+                        IncludedData.TraceIdField |
+                        IncludedData.SpanIdField |
+                        IncludedData.MessageTemplateRenderingsAttribute |
+                        IncludedData.SpecRequiredFields;
+                    opts.ResourceAttributes = new Dictionary<string, object>
+                    {
+                        ["service.name"] = IdentityDiagnostics.ServiceName,
+                        ["service.version"] = serviceVersion,
+                        ["deployment.environment"] = builder.Environment.EnvironmentName,
+                        ["host.name"] = Environment.MachineName,
+                    };
+                },
+                restrictedToMinimumLevel: LogEventLevel.Verbose);
         }
     });
 
