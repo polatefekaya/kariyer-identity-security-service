@@ -169,7 +169,6 @@ try
         .WithTracing(tracing => tracing
             .AddSource(IdentityDiagnostics.ServiceName)
             .AddSource(DiagnosticHeaders.DefaultListenerName)
-            .AddSource("Yarp.ReverseProxy")
             .AddAspNetCoreInstrumentation(opts =>
             {
                 // Exclude health-check noise from traces
