@@ -118,7 +118,6 @@ try
             .Enrich.FromLogContext()
             .Enrich.With<TraceContextEnricher>()
             .Enrich.WithProperty("deployment.environment", builder.Environment.EnvironmentName)
-            .Enrich.WithProperty("service.name", IdentityDiagnostics.ServiceName)
             .Enrich.WithProperty("service.version", serviceVersion)
             .Enrich.WithProperty("host.name", Environment.MachineName)
             // Console: human-readable, restricted to Information+ to avoid noise
@@ -170,6 +169,7 @@ try
         .WithTracing(tracing => tracing
             .AddSource(IdentityDiagnostics.ServiceName)
             .AddSource(DiagnosticHeaders.DefaultListenerName)
+            .AddSource("Yarp.ReverseProxy")
             .AddAspNetCoreInstrumentation(opts =>
             {
                 // Exclude health-check noise from traces
