@@ -92,6 +92,10 @@ try
             .ReadFrom.Services(services)
             .Enrich.FromLogContext()
             .Enrich.With<TraceContextEnricher>()
+            .Enrich.WithProperty("deployment.environment", builder.Environment.EnvironmentName)
+            .Enrich.WithProperty("service.name", IdentityDiagnostics.ServiceName)
+            .Enrich.WithProperty("service.version", serviceVersion)
+            .Enrich.WithProperty("host.name", Environment.MachineName)
             // Console: human-readable, restricted to Information+ to avoid noise
             .WriteTo.Console(
                 outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj} {TraceId}{NewLine}{Exception}",
