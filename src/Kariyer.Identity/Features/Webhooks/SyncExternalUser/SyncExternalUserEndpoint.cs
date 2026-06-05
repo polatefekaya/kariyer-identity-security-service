@@ -316,6 +316,62 @@ public static class SyncExternalUserEndpoint
                     activity?.SetTag("transaction.outcome", "legacy_account_migrated");
                 }
 
+                // Record consent logs for docs accepted at signup — separate from the main transaction
+                // so a consent logging failure never rolls back the user creation.
+                if (isNewRecord && !isAdmin)
+                {
+                    var acceptedDocTypes = new List<string>();
+                    if (isCompany)
+                    {
+                        if (kvkkIsverenAccepted)           acceptedDocTypes.Add("kvkk_isveren");
+                        if (isverenSozlesmesiAccepted)     acceptedDocTypes.Add("isveren_sozlesmesi");
+                        if (ticariElektronikIletiAccepted) acceptedDocTypes.Add("ticari_elektronik_ileti");
+                    }
+                    else
+                    {
+                        if (kvkkAydinlatmaAccepted)        acceptedDocTypes.Add("kvkk_aydinlatma");
+                        if (acikRizaAccepted)              acceptedDocTypes.Add("acik_riza");
+                        if (kullaniciSozlesmesiAccepted)   acceptedDocTypes.Add("kullanici_sozlesmesi");
+                        if (ticariElektronikIletiAccepted) acceptedDocTypes.Add("ticari_elektronik_ileti");
+                    }
+
+                    if (acceptedDocTypes.Count > 0)
+                    {
+                        try
+                        {
+                            string consentUid      = isCompany ? $"{externalId}-company" : $"{externalId}-employee";
+                            string consentUserType = isCompany ? "company" : "employee";
+
+                            var conn = (NpgsqlConnection)dbContext.Database.GetDbConnection();
+                            bool wasOpen = conn.State == System.Data.ConnectionState.Open;
+                            if (!wasOpen) await conn.OpenAsync(cancellationToken);
+
+                            await using var cmd = conn.CreateCommand();
+                            cmd.CommandText = @"
+                                INSERT INTO legal_consent_logs
+                                    (user_uid, user_type, legal_doc_id, doc_type, doc_version, accepted, accepted_at)
+                                SELECT @uid, @userType, ld.id, ld.doc_type, ld.version, true, NOW()
+                                FROM legal_documents ld
+                                WHERE ld.status = 'published'
+                                  AND ld.is_active  = true
+                                  AND ld.applicable_to = @userType
+                                  AND ld.doc_type = ANY(@docTypes)";
+                            cmd.Parameters.AddWithValue("uid",      consentUid);
+                            cmd.Parameters.AddWithValue("userType", consentUserType);
+                            cmd.Parameters.AddWithValue("docTypes", acceptedDocTypes.ToArray());
+
+                            await cmd.ExecuteNonQueryAsync(cancellationToken);
+                            if (!wasOpen) await conn.CloseAsync();
+
+                            logger.LogInformation("Recorded signup consent logs for {Id} — {DocTypes}", externalId, string.Join(", ", acceptedDocTypes));
+                        }
+                        catch (Exception consentEx)
+                        {
+                            logger.LogWarning("Failed to record signup consent logs for {Id}: {Error}", externalId, consentEx.Message);
+                        }
+                    }
+                }
+
                 activity?.SetStatus(ActivityStatusCode.Ok);
                 IdentityDiagnostics.WebhookProcessedCounter.Add(1,
                     new KeyValuePair<string, object?>("outcome", "success"),
