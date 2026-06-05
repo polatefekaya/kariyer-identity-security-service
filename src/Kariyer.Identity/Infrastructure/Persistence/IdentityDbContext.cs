@@ -12,6 +12,8 @@ public class IdentityDbContext : DbContext
     public DbSet<LegacyAdmin> Admins => Set<LegacyAdmin>();
     public DbSet<AccountDeletionSagaState> AccountDeletionSagas => Set<AccountDeletionSagaState>();
     public DbSet<CredentialUpdateSagaState> CredentialUpdateSagas => Set<CredentialUpdateSagaState>();
+    public DbSet<LegalDocument> LegalDocuments => Set<LegalDocument>();
+    public DbSet<LegalConsentLog> LegalConsentLogs => Set<LegalConsentLog>();
 
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 

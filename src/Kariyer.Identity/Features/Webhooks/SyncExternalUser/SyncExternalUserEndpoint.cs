@@ -316,8 +316,8 @@ public static class SyncExternalUserEndpoint
                     activity?.SetTag("transaction.outcome", "legacy_account_migrated");
                 }
 
-                // Record consent logs for docs accepted at signup — separate from the main transaction
-                // so a consent logging failure never rolls back the user creation.
+                // Record consent logs for docs accepted at signup.
+                // Runs outside the main transaction so a failure here never rolls back user creation.
                 if (isNewRecord && !isAdmin)
                 {
                     var acceptedDocTypes = new List<string>();
@@ -342,28 +342,34 @@ public static class SyncExternalUserEndpoint
                             string consentUid      = isCompany ? $"{externalId}-company" : $"{externalId}-employee";
                             string consentUserType = isCompany ? "company" : "employee";
 
-                            var conn = (NpgsqlConnection)dbContext.Database.GetDbConnection();
-                            bool wasOpen = conn.State == System.Data.ConnectionState.Open;
-                            if (!wasOpen) await conn.OpenAsync(cancellationToken);
+                            List<LegalDocument> activeDocs = await dbContext.LegalDocuments
+                                .AsNoTracking()
+                                .Where(d => d.Status == "published"
+                                         && d.IsActive
+                                         && d.ApplicableTo == consentUserType
+                                         && acceptedDocTypes.Contains(d.DocType))
+                                .ToListAsync(cancellationToken);
 
-                            await using var cmd = conn.CreateCommand();
-                            cmd.CommandText = @"
-                                INSERT INTO legal_consent_logs
-                                    (user_uid, user_type, legal_doc_id, doc_type, doc_version, accepted, accepted_at)
-                                SELECT @uid, @userType, ld.id, ld.doc_type, ld.version, true, NOW()
-                                FROM legal_documents ld
-                                WHERE ld.status = 'published'
-                                  AND ld.is_active  = true
-                                  AND ld.applicable_to = @userType
-                                  AND ld.doc_type = ANY(@docTypes)";
-                            cmd.Parameters.AddWithValue("uid",      consentUid);
-                            cmd.Parameters.AddWithValue("userType", consentUserType);
-                            cmd.Parameters.AddWithValue("docTypes", acceptedDocTypes.ToArray());
+                            if (activeDocs.Count > 0)
+                            {
+                                DateTimeOffset now = DateTimeOffset.UtcNow;
+                                List<LegalConsentLog> logs = activeDocs.Select(doc => new LegalConsentLog
+                                {
+                                    UserUid    = consentUid,
+                                    UserType   = consentUserType,
+                                    LegalDocId = doc.Id,
+                                    DocType    = doc.DocType,
+                                    DocVersion = doc.Version,
+                                    Accepted   = true,
+                                    AcceptedAt = now,
+                                    IpAddress  = null
+                                }).ToList();
 
-                            await cmd.ExecuteNonQueryAsync(cancellationToken);
-                            if (!wasOpen) await conn.CloseAsync();
+                                await dbContext.LegalConsentLogs.AddRangeAsync(logs, cancellationToken);
+                                await dbContext.SaveChangesAsync(cancellationToken);
 
-                            logger.LogInformation("Recorded signup consent logs for {Id} — {DocTypes}", externalId, string.Join(", ", acceptedDocTypes));
+                                logger.LogInformation("Recorded {Count} signup consent log(s) for {Id}", logs.Count, externalId);
+                            }
                         }
                         catch (Exception consentEx)
                         {
