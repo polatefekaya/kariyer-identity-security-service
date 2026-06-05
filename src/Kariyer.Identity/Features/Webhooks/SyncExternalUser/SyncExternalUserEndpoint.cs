@@ -68,11 +68,12 @@ public static class SyncExternalUserEndpoint
             string fullName = payload.Record.UserMetadata?.FullName ?? payload.Record.UserMetadata?.Name ?? string.Empty;
             string phoneNumber = payload.Record.UserMetadata?.PhoneNumber ?? string.Empty;
             string avatarUrl = payload.Record.UserMetadata?.AvatarUrl ?? string.Empty;
-            bool userAgreementAccepted = payload.Record.UserMetadata?.UserAgreementAccepted ?? false;
-            bool kvkkAccepted = payload.Record.UserMetadata?.KvkkAccepted ?? false;
-            bool commercialConsentAccepted = payload.Record.UserMetadata?.CommercialConsentAccepted ?? false;
-            bool acikRizaDataAbroadAccepted = payload.Record.UserMetadata?.AcikRizaDataAbroadAccepted ?? false;
-            bool acikRizaHealthDataAccepted = payload.Record.UserMetadata?.AcikRizaHealthDataAccepted ?? false;
+            bool kvkkAydinlatmaAccepted = payload.Record.UserMetadata?.KvkkAydinlatmaAccepted ?? false;
+            bool kullaniciSozlesmesiAccepted = payload.Record.UserMetadata?.KullaniciSozlesmesiAccepted ?? false;
+            bool acikRizaAccepted = payload.Record.UserMetadata?.AcikRizaAccepted ?? false;
+            bool kvkkIsverenAccepted = payload.Record.UserMetadata?.KvkkIsverenAccepted ?? false;
+            bool isverenSozlesmesiAccepted = payload.Record.UserMetadata?.IsverenSozlesmesiAccepted ?? false;
+            bool ticariElektronikIletiAccepted = payload.Record.UserMetadata?.TicariElektronikIletiAccepted ?? false;
 
             activity?.SetTag("oauth.account_type", string.IsNullOrWhiteSpace(accountType) ? "none" : accountType);
 
@@ -165,7 +166,7 @@ public static class SyncExternalUserEndpoint
                             else
                             {
                                 LegacyCompany newCompany = LegacyCompany.CreateFromExternalProvider(
-                                    externalId, email, phoneNumber, firstName, lastName, userAgreementAccepted: userAgreementAccepted, kvkkAccepted: kvkkAccepted, commercialConsentAccepted: commercialConsentAccepted, acikRizaDataAbroadAccepted: acikRizaDataAbroadAccepted
+                                    externalId, email, phoneNumber, firstName, lastName, kvkkIsverenAccepted: kvkkIsverenAccepted, isverenSozlesmesiAccepted: isverenSozlesmesiAccepted, ticariElektronikIletiAccepted: ticariElektronikIletiAccepted
                                 );
                                 await dbContext.Companies.AddAsync(newCompany, cancellationToken);
                                 isNewRecord = true;
@@ -223,7 +224,7 @@ public static class SyncExternalUserEndpoint
                             else
                             {
                                 LegacyEmployee newEmployee = LegacyEmployee.CreateFromExternalProvider(
-                                    externalId, email, phoneNumber, firstName, lastName, userAgreementAccepted: userAgreementAccepted, kvkkAccepted: kvkkAccepted, commercialConsentAccepted: commercialConsentAccepted, acikRizaDataAbroadAccepted: acikRizaDataAbroadAccepted, acikRizaHealthDataAccepted: acikRizaHealthDataAccepted
+                                    externalId, email, phoneNumber, firstName, lastName, kvkkAydinlatmaAccepted: kvkkAydinlatmaAccepted, kullaniciSozlesmesiAccepted: kullaniciSozlesmesiAccepted, acikRizaAccepted: acikRizaAccepted, ticariElektronikIletiAccepted: ticariElektronikIletiAccepted
                                 );
                                 await dbContext.Employees.AddAsync(newEmployee, cancellationToken);
                                 isNewRecord = true;

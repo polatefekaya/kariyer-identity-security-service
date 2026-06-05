@@ -30,11 +30,15 @@ public sealed record SupabaseUserMetadata(
     [property: JsonPropertyName("full_name")] string? FullName,
     [property: JsonPropertyName("name")] string? Name,
     [property: JsonPropertyName("avatar_url")] string? AvatarUrl,
-    [property: JsonPropertyName("kvkk_accepted")] bool KvkkAccepted,
-    [property: JsonPropertyName("user_agreement_accepted")] bool UserAgreementAccepted,
-    [property: JsonPropertyName("commercial_consent_accepted")] bool CommercialConsentAccepted,
-    [property: JsonPropertyName("acik_riza_data_abroad_accepted")] bool AcikRizaDataAbroadAccepted,
-    [property: JsonPropertyName("acik_riza_health_data_accepted")] bool AcikRizaHealthDataAccepted
+    // Employee-specific consent fields
+    [property: JsonPropertyName("kvkk_aydinlatma_accepted")] bool KvkkAydinlatmaAccepted,
+    [property: JsonPropertyName("kullanici_sozlesmesi_accepted")] bool KullaniciSozlesmesiAccepted,
+    [property: JsonPropertyName("acik_riza_accepted")] bool AcikRizaAccepted,
+    // Company-specific consent fields
+    [property: JsonPropertyName("kvkk_isveren_accepted")] bool KvkkIsverenAccepted,
+    [property: JsonPropertyName("isveren_sozlesmesi_accepted")] bool IsverenSozlesmesiAccepted,
+    // Shared consent field (employee + company, optional)
+    [property: JsonPropertyName("ticari_elektronik_ileti_accepted")] bool TicariElektronikIletiAccepted
 );
 
 [JsonSerializable(typeof(DatabaseWebhookPayload))]

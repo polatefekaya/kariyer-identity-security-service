@@ -44,10 +44,9 @@ public class LegacyCompany
     public bool EmailVerified { get; set; }
     public bool PhoneVerified { get; set; }
 
-    public bool CommercialConsentAccepted { get; set; }
-    public bool UserAgreementAccepted { get; set; }
-    public bool KvkkAccepted { get; set; }
-    public bool AcikRizaDataAbroadAccepted { get; set; }
+    public bool KvkkIsverenAccepted { get; set; }
+    public bool IsverenSozlesmesiAccepted { get; set; }
+    public bool TicariElektronikIletiAccepted { get; set; }
 
     // Integers (allowNull: false)
     public int OnboardingReminderStep { get; set; }
@@ -109,7 +108,7 @@ public class LegacyCompany
 
     protected LegacyCompany() { }
 
-    public static LegacyCompany CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool userAgreementAccepted, bool kvkkAccepted, bool commercialConsentAccepted, bool acikRizaDataAbroadAccepted)
+    public static LegacyCompany CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool kvkkIsverenAccepted, bool isverenSozlesmesiAccepted, bool ticariElektronikIletiAccepted)
     {
         return new LegacyCompany
         {
@@ -126,10 +125,9 @@ public class LegacyCompany
             Password = string.Empty,
             CreatedDate = DateTimeOffset.UtcNow,
             OnboardingReminderStep = 0,
-            UserAgreementAccepted = userAgreementAccepted,
-            KvkkAccepted = kvkkAccepted,
-            CommercialConsentAccepted = commercialConsentAccepted,
-            AcikRizaDataAbroadAccepted = acikRizaDataAbroadAccepted,
+            KvkkIsverenAccepted = kvkkIsverenAccepted,
+            IsverenSozlesmesiAccepted = isverenSozlesmesiAccepted,
+            TicariElektronikIletiAccepted = ticariElektronikIletiAccepted,
         };
     }
     

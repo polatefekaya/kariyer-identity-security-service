@@ -28,11 +28,10 @@ public class LegacyEmployeeConfiguration : IEntityTypeConfiguration<LegacyEmploy
         builder.Property(e => e.PhoneVerified).HasColumnName("phone_verified").HasDefaultValue(false).IsRequired();
         builder.Property(e => e.CompanyEmailVerified).HasColumnName("company_email_verified").HasDefaultValue(false).IsRequired();
 
-        builder.Property(e => e.UserAgreementAccepted).HasColumnName("user_agreement_accepted").HasDefaultValue(false).IsRequired();
-        builder.Property(e => e.KvkkAccepted).HasColumnName("kvkk_accepted").HasDefaultValue(false).IsRequired();
-        builder.Property(e => e.CommercialConsentAccepted).HasColumnName("commercial_consent_accepted").HasDefaultValue(false).IsRequired();
-        builder.Property(e => e.AcikRizaDataAbroadAccepted).HasColumnName("acik_riza_data_abroad_accepted").HasDefaultValue(false).IsRequired();
-        builder.Property(e => e.AcikRizaHealthDataAccepted).HasColumnName("acik_riza_health_data_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(e => e.KvkkAydinlatmaAccepted).HasColumnName("kvkk_aydinlatma_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(e => e.KullaniciSozlesmesiAccepted).HasColumnName("kullanici_sozlesmesi_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(e => e.AcikRizaAccepted).HasColumnName("acik_riza_accepted").HasDefaultValue(false).IsRequired();
+        builder.Property(e => e.TicariElektronikIletiAccepted).HasColumnName("ticari_elektronik_ileti_accepted").HasDefaultValue(false).IsRequired();
         
 
         // Strings (allowNull: false)

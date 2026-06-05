@@ -54,11 +54,10 @@ public class LegacyEmployee
     public bool PhoneVerified { get; set; }
     public bool CompanyEmailVerified { get; set; }
 
-    public bool CommercialConsentAccepted { get; set; }
-    public bool UserAgreementAccepted { get; set; }
-    public bool KvkkAccepted { get; set; }
-    public bool AcikRizaDataAbroadAccepted { get; set; }
-    public bool AcikRizaHealthDataAccepted { get; set; }
+    public bool KvkkAydinlatmaAccepted { get; set; }
+    public bool KullaniciSozlesmesiAccepted { get; set; }
+    public bool AcikRizaAccepted { get; set; }
+    public bool TicariElektronikIletiAccepted { get; set; }
 
     // Hashes (allowNull: true)
     public string? EmailHash { get; set; }
@@ -86,7 +85,7 @@ public class LegacyEmployee
 
     protected LegacyEmployee() { }
 
-    public static LegacyEmployee CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool userAgreementAccepted, bool kvkkAccepted, bool commercialConsentAccepted, bool acikRizaDataAbroadAccepted, bool acikRizaHealthDataAccepted)
+    public static LegacyEmployee CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool kvkkAydinlatmaAccepted, bool kullaniciSozlesmesiAccepted, bool acikRizaAccepted, bool ticariElektronikIletiAccepted)
     {
         return new LegacyEmployee
         {
@@ -108,11 +107,10 @@ public class LegacyEmployee
             Followers = [],
             Notifications = [],
             Jwt = [],
-            UserAgreementAccepted = userAgreementAccepted,
-            KvkkAccepted = kvkkAccepted,
-            CommercialConsentAccepted = commercialConsentAccepted,
-            AcikRizaDataAbroadAccepted = acikRizaDataAbroadAccepted,
-            AcikRizaHealthDataAccepted = acikRizaHealthDataAccepted,
+            KvkkAydinlatmaAccepted = kvkkAydinlatmaAccepted,
+            KullaniciSozlesmesiAccepted = kullaniciSozlesmesiAccepted,
+            AcikRizaAccepted = acikRizaAccepted,
+            TicariElektronikIletiAccepted = ticariElektronikIletiAccepted,
         };
     }
     
