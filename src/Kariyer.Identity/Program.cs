@@ -54,6 +54,16 @@ try
     string otlpLogsEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT")
         ?? (string.IsNullOrWhiteSpace(otlpEndpoint) ? string.Empty : otlpEndpoint.TrimEnd('/') + "/v1/logs");
 
+    // OTLP log volume control. Defaults to Information so Verbose/Debug/Trace (notably the
+    // per-webhook [DIAG] traces) no longer flood SigNoz. Set OTEL_LOGS_MINIMUM_LEVEL=Verbose|Debug
+    // to temporarily widen it while debugging — no code change or redeploy of config needed.
+    LogEventLevel otlpLogMinLevel = Enum.TryParse(
+        Environment.GetEnvironmentVariable("OTEL_LOGS_MINIMUM_LEVEL"),
+        ignoreCase: true,
+        out LogEventLevel parsedOtlpLevel)
+        ? parsedOtlpLevel
+        : LogEventLevel.Information;
+
     // OTEL_EXPORTER_OTLP_HEADERS format: "key=value,key2=value2"
     // The OTel SDK reads this automatically via env vars, but when we set Endpoint explicitly
     // the SDK no longer merges env-var headers — so we pass them explicitly everywhere.
@@ -127,7 +137,7 @@ try
 
         if (!string.IsNullOrWhiteSpace(otlpLogsEndpoint))
         {
-            // OTLP: all levels flow here (Verbose through Fatal).
+            // OTLP: levels at/above otlpLogMinLevel flow here (default Information through Fatal).
             // IncludedData ensures trace_id / span_id are set as proper OTel log record
             // fields (not just string attributes), enabling log-trace correlation in SigNoz.
             lc.WriteTo.OpenTelemetry(
@@ -147,7 +157,7 @@ try
                     IncludedData.MessageTemplateRenderingsAttribute |
                     IncludedData.SpecRequiredResourceAttributes |
                     IncludedData.SourceContextAttribute,
-                restrictedToMinimumLevel: LogEventLevel.Verbose);
+                restrictedToMinimumLevel: otlpLogMinLevel);
         }
         else
         {
@@ -411,7 +421,19 @@ try
         await next();
     });
 
-    app.UseSerilogRequestLogging();
+    app.UseSerilogRequestLogging(options =>
+    {
+        // Health probes (/health/live, /health/ready) hit every few seconds. Logging them at
+        // Information floods SigNoz with identical lines — drop them to Verbose so both the
+        // console (Information+) and OTLP (otlpLogMinLevel, default Information) sinks discard
+        // them, while still surfacing genuine errors/5xx as Error.
+        options.GetLevel = (httpContext, _, ex) =>
+            ex is not null || httpContext.Response.StatusCode >= 500
+                ? LogEventLevel.Error
+                : httpContext.Request.Path.StartsWithSegments("/health")
+                    ? LogEventLevel.Verbose
+                    : LogEventLevel.Information;
+    });
     app.UseRouting();
     app.UseCors("StrictFrontendPolicy");
     app.UseMiddleware<BaggageEnricherMiddleware>();
