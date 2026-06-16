@@ -22,6 +22,11 @@ public static class IdentityDiagnostics
         unit: "{accounts}",
         description: "Accounts synced from Supabase webhook, tagged by account_type (employee/company).");
 
+    public static readonly Counter<int> WebhookRejectedCounter = Meter.CreateCounter<int>(
+        name: "identity.webhook.rejected.count",
+        unit: "{webhooks}",
+        description: "Supabase webhook requests rejected at the auth filter before any processing, tagged by reason (missing_secret/invalid_secret). A non-zero rate here is the usual cause of 'registration creates nothing' — the X-Webhook-Secret is misconfigured.");
+
     // ── Admin operations ──────────────────────────────────────────────────────
 
     public static readonly Counter<int> AdminOperationsCounter = Meter.CreateCounter<int>(
