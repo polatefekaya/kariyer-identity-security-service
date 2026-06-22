@@ -18,41 +18,67 @@ internal sealed class CreateAdminService(
         activity?.SetTag("admin.email", request.Email);
         activity?.SetTag("admin.role", request.Role);
 
+        if (!AdminConstants.IsAllowedEmailDomain(request.Email))
+        {
+            logger.LogWarning("CreateAdmin rejected: email domain not allowed for {Email}", request.Email);
+            return new ApiResponse<CreateAdminResponseData>(
+                Success: false,
+                Message: "Yönetici hesabı yalnızca kurumsal e-posta adresleri ile oluşturulabilir.",
+                Data: null);
+        }
+
         try
         {
             logger.LogInformation("Attempting to create admin in Supabase Auth for {Email}", request.Email);
-            
+
             Guid externalId = await supabaseAuth.CreateUserAsync(
                             email: request.Email,
                             password: request.Password,
                             firstName: request.Name,
                             lastName: request.Surname,
-                            accountType: "admin", 
+                            accountType: "admin",
                             cancellationToken: cancellationToken);
 
             activity?.AddEvent(new ActivityEvent("SupabaseUserCreated"));
 
-            LegacyAdmin newAdmin = LegacyAdmin.CreateFromExternalProvider(
-                externalId: externalId,
-                email: request.Email,
-                phone: string.Empty,
-                name: request.Name,
-                surname: request.Surname,
-                role: request.Role
-            );
+            try
+            {
+                LegacyAdmin newAdmin = LegacyAdmin.CreateFromExternalProvider(
+                    externalId: externalId,
+                    email: request.Email,
+                    phone: string.Empty,
+                    name: request.Name,
+                    surname: request.Surname,
+                    role: request.Role
+                );
 
-            newAdmin.CompleteAccount();
+                newAdmin.CompleteAccount();
 
-            await dbContext.Admins.AddAsync(newAdmin, cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
+                await dbContext.Admins.AddAsync(newAdmin, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
 
-            IdentityDiagnostics.AdminOperationsCounter.Add(1, new KeyValuePair<string, object?>("operation", "create"));
+                IdentityDiagnostics.AdminOperationsCounter.Add(1, new KeyValuePair<string, object?>("operation", "create"));
 
-            return new ApiResponse<CreateAdminResponseData>(
-                Success: true,
-                Message: "Yönetici başarıyla oluşturuldu.",
-                Data: new CreateAdminResponseData(newAdmin.Uid)
-            );
+                return new ApiResponse<CreateAdminResponseData>(
+                    Success: true,
+                    Message: "Yönetici başarıyla oluşturuldu.",
+                    Data: new CreateAdminResponseData(newAdmin.Uid)
+                );
+            }
+            catch (Exception dbEx)
+            {
+                logger.LogError(dbEx, "DB save failed after Supabase user created for {Email}. Compensating by deleting Supabase user.", request.Email);
+                try
+                {
+                    await supabaseAuth.DeleteUserAsync(externalId, cancellationToken);
+                    logger.LogInformation("Compensation successful: deleted orphaned Supabase user {ExternalId}", externalId);
+                }
+                catch (Exception compensationEx)
+                {
+                    logger.LogCritical(compensationEx, "COMPENSATION FAILED: Orphaned Supabase user {ExternalId} for {Email} could not be deleted.", externalId, request.Email);
+                }
+                throw;
+            }
         }
         catch (Exception ex)
         {
