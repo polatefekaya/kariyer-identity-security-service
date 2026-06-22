@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Kariyer.Identity.Infrastructure.Telemetry;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using ILogger = Serilog.ILogger;
 
@@ -85,11 +86,19 @@ public static class AuthenticationExtensions
                         };
                     });
                     
+        services.AddScoped<IAuthorizationHandler, AdminDbAuthorizationHandler>();
+
         services.AddAuthorizationBuilder()
             .AddPolicy("RequireAdmin", policy =>
-                policy.RequireRole("admin", "super_admin"))
+            {
+                policy.RequireRole("admin", "super_admin");
+                policy.AddRequirements(new AdminDbRequirement());
+            })
             .AddPolicy("RequireSuperAdmin", policy =>
-                policy.RequireRole("super_admin"));
+            {
+                policy.RequireRole("super_admin");
+                policy.AddRequirements(new AdminDbRequirement());
+            });
 
         return services;
     }

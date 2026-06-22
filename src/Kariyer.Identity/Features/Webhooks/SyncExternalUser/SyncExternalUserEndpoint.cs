@@ -194,12 +194,9 @@ public static class SyncExternalUserEndpoint
                             }
                             else
                             {
-                                LegacyAdmin newAdmin = LegacyAdmin.CreateFromExternalProvider(
-                                    externalId, email, phoneNumber, firstName, lastName, accountType
-                                );
-                                await dbContext.Admins.AddAsync(newAdmin, cancellationToken);
-                                isNewRecord = true;
-                                logger.LogTrace("[DIAG] New LegacyAdmin entity added to ChangeTracker.");
+                                logger.LogWarning("SECURITY: Webhook received admin signup for {Email} (ExternalId: {ExternalId}) with no existing DB record. " +
+                                    "Auto-creation is disabled — admins must be created via POST /api/admins or bootstrap.", email, externalId);
+                                activity?.AddEvent(new ActivityEvent("UnauthorizedAdminSignupBlocked"));
                             }
                         }
                         else
