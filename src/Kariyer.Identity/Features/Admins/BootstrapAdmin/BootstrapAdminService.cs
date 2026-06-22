@@ -67,6 +67,18 @@ internal sealed class BootstrapAdminService(
                 dbContext.Admins.Add(newAdmin);
                 await dbContext.SaveChangesAsync(cancellationToken);
 
+                int adminCount = await dbContext.Admins
+                    .CountAsync(a => a.ExternalId != null && !a.IsDeleted && !a.PermaDeleted, cancellationToken);
+
+                if (adminCount > 1)
+                {
+                    dbContext.Admins.Remove(newAdmin);
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    await supabaseAuth.DeleteUserAsync(externalId, cancellationToken);
+                    logger.LogWarning("Bootstrap race condition detected. Rolled back duplicate admin for {Email}.", request.Email);
+                    return new ApiResponse<BootstrapAdminResponseData>(false, "Sistem zaten başka bir istek tarafından kuruldu.", null);
+                }
+
                 IdentityDiagnostics.AdminOperationsCounter.Add(1, new KeyValuePair<string, object?>("operation", "bootstrap"));
 
                 return new ApiResponse<BootstrapAdminResponseData>(
