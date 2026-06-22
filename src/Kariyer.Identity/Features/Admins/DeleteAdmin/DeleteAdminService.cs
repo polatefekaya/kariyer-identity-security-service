@@ -12,7 +12,7 @@ internal sealed class DeleteAdminService(
     ISupabaseAdminAuthService supabaseAuth,
     ILogger<DeleteAdminService> logger) : IDeleteAdminService
 {
-    public async Task<bool> HandleAsync(string uid, CancellationToken cancellationToken)
+    public async Task<(bool Success, string? Error)> HandleAsync(string uid, Guid? callerExternalId, CancellationToken cancellationToken)
     {
         long startMs = Stopwatch.GetTimestamp();
         using Activity? activity = IdentityDiagnostics.ActivitySource.StartActivity("HardDeleteAdmin");
@@ -26,7 +26,13 @@ internal sealed class DeleteAdminService(
             if (admin is null)
             {
                 activity?.SetTag("admin.found", false);
-                return false;
+                return (false, "Yönetici bulunamadı.");
+            }
+
+            if (callerExternalId.HasValue && admin.ExternalId == callerExternalId)
+            {
+                logger.LogWarning("Self-deletion attempt blocked for admin {Uid}", uid);
+                return (false, "Kendi hesabınızı silemezsiniz.");
             }
 
             activity?.SetTag("admin.found", true);
@@ -51,7 +57,7 @@ internal sealed class DeleteAdminService(
                 new KeyValuePair<string, object?>("operation", "hard_delete"));
 
             activity?.AddEvent(new ActivityEvent("AdminDeleted"));
-            return true;
+            return (true, null);
         }
         catch (Exception ex)
         {

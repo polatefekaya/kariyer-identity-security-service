@@ -27,7 +27,8 @@ public static class AdminModule
 
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapBootstrapAdmin();
+        app.MapBootstrapAdmin()
+            .RequireRateLimiting("AdminOperations");
 
         RouteGroupBuilder adminGroup = app.MapGroup("/api/admins")
             .RequireAuthorization("RequireAdmin")

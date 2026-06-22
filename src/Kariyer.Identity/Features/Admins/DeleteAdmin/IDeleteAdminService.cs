@@ -2,5 +2,5 @@ namespace Kariyer.Identity.Features.Admins.DeleteAdmin;
 
 internal interface IDeleteAdminService
 {
-    Task<bool> HandleAsync(string uid, CancellationToken cancellationToken);
+    Task<(bool Success, string? Error)> HandleAsync(string uid, Guid? callerExternalId, CancellationToken cancellationToken);
 }

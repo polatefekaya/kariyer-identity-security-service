@@ -7,9 +7,9 @@ namespace Kariyer.Identity.Features.Admins.BootstrapAdmin;
 
 public static class BootstrapAdminEndpoint
 {
-    public static void MapBootstrapAdmin(this IEndpointRouteBuilder app)
+    public static RouteHandlerBuilder MapBootstrapAdmin(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/admins/bootstrap", async (
+        return app.MapPost("/api/admins/bootstrap", async (
             BootstrapAdminRequest request,
             HttpRequest httpRequest,
             IConfiguration config,
