@@ -87,6 +87,7 @@ public static class AuthenticationExtensions
                     });
                     
         services.AddScoped<IAuthorizationHandler, AdminDbAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, SuperAdminDbAuthorizationHandler>();
 
         services.AddAuthorizationBuilder()
             .AddPolicy("RequireAdmin", policy =>
@@ -96,8 +97,9 @@ public static class AuthenticationExtensions
             })
             .AddPolicy("RequireSuperAdmin", policy =>
             {
-                policy.RequireRole("super_admin");
+                policy.RequireRole("admin", "super_admin");
                 policy.AddRequirements(new AdminDbRequirement());
+                policy.AddRequirements(new SuperAdminDbRequirement());
             });
 
         return services;
