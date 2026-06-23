@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Kariyer.Identity.Domain.Entities;
+using Kariyer.Identity.Infrastructure.Auth;
 using Kariyer.Identity.Infrastructure.Persistence;
 using Kariyer.Identity.Infrastructure.Telemetry;
 using Kariyer.Messaging.Contracts.Account;
@@ -19,6 +20,7 @@ public static class SyncExternalUserEndpoint
             [FromBody] DatabaseWebhookPayload payload,
             IdentityDbContext dbContext,
             IPublishEndpoint publishEndpoint,
+            ISupabaseAdminAuthService supabaseAuth,
             ILogger<SupabaseDatabaseWebhookFilter> logger,
             CancellationToken cancellationToken) =>
         {
@@ -195,8 +197,19 @@ public static class SyncExternalUserEndpoint
                             else
                             {
                                 logger.LogWarning("SECURITY: Webhook received admin signup for {Email} (ExternalId: {ExternalId}) with no existing DB record. " +
-                                    "Auto-creation is disabled — admins must be created via POST /api/admins or bootstrap.", email, externalId);
+                                    "Auto-creation is disabled — admins must be created via POST /api/admins or bootstrap. Deleting unauthorized Supabase user.", email, externalId);
                                 activity?.AddEvent(new ActivityEvent("UnauthorizedAdminSignupBlocked"));
+
+                                try
+                                {
+                                    await supabaseAuth.DeleteUserAsync(externalId, cancellationToken);
+                                    logger.LogInformation("SECURITY: Deleted unauthorized admin Supabase account {ExternalId} ({Email}).", externalId, email);
+                                    activity?.AddEvent(new ActivityEvent("UnauthorizedAdminDeleted"));
+                                }
+                                catch (Exception deleteEx)
+                                {
+                                    logger.LogError(deleteEx, "SECURITY: Failed to delete unauthorized admin Supabase account {ExternalId} ({Email}). Manual cleanup required.", externalId, email);
+                                }
                             }
                         }
                         else
