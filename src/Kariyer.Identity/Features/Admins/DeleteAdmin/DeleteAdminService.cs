@@ -23,6 +23,9 @@ internal sealed class DeleteAdminService(
             LegacyAdmin? admin = await dbContext.Admins
                 .FirstOrDefaultAsync(a => a.Uid == uid, cancellationToken);
 
+            admin ??= await dbContext.Admins
+                .FirstOrDefaultAsync(a => a.Email != null && a.Email == uid, cancellationToken);
+
             if (admin is null)
             {
                 activity?.SetTag("admin.found", false);

@@ -23,7 +23,7 @@ public static class DeleteAdminEndpoint
             if (error is not null)
                 return Results.Json(
                     new ApiResponse<object>(false, error, null),
-                    statusCode: error.Contains("kendinizi") ? StatusCodes.Status403Forbidden : StatusCodes.Status404NotFound);
+                    statusCode: error.Contains("silemezsiniz") ? StatusCodes.Status403Forbidden : StatusCodes.Status404NotFound);
 
             return Results.Ok(new ApiResponse<object>(true, "Yönetici kalıcı olarak silindi.", null));
         });
