@@ -17,6 +17,7 @@ public static class YarpExtensions
         ["supabaseCluster"] = "supabase-auth",
         ["nodeBackendCluster"] = "node-backend",
         ["fileServiceCluster"] = "file-service",
+        ["cmsCluster"] = "cms-service",
     };
 
     public static IServiceCollection AddCustomReverseProxy(this IServiceCollection services, IConfiguration configuration)
