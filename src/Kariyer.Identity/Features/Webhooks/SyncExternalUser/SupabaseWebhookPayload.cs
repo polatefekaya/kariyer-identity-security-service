@@ -38,7 +38,11 @@ public sealed record SupabaseUserMetadata(
     [property: JsonPropertyName("kvkk_isveren_accepted")] bool KvkkIsverenAccepted,
     [property: JsonPropertyName("isveren_sozlesmesi_accepted")] bool IsverenSozlesmesiAccepted,
     // Shared consent field (employee + company, optional)
-    [property: JsonPropertyName("ticari_elektronik_ileti_accepted")] bool TicariElektronikIletiAccepted
+    [property: JsonPropertyName("ticari_elektronik_ileti_accepted")] bool TicariElektronikIletiAccepted,
+    // Set by auth-hub's /migrate flow, which signs up an existing legacy user with no
+    // name or phone in the metadata. Without this flag an unmatched migration silently
+    // creates a brand-new, nameless account.
+    [property: JsonPropertyName("is_migration")] bool IsMigration = false
 );
 
 [JsonSerializable(typeof(DatabaseWebhookPayload))]

@@ -1,4 +1,5 @@
 using Kariyer.Identity.Domain.Enums;
+using Kariyer.Identity.Features.Shared;
 
 namespace Kariyer.Identity.Domain.Entities;
 
@@ -108,20 +109,35 @@ public class LegacyCompany
 
     protected LegacyCompany() { }
 
+    private static string? NullIfBlank(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     public static LegacyCompany CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool kvkkIsverenAccepted, bool isverenSozlesmesiAccepted, bool ticariElektronikIletiAccepted)
     {
+        // Store NULL rather than "" for anything the provider did not supply, so the
+        // admin panel can tell "never provided" apart from "explicitly blank".
+        string? authorizedName = NullIfBlank(firstName);
+        string? authorizedSurname = NullIfBlank(lastName);
+        string? normalizedPhone = NullIfBlank(PhoneNormalizer.Normalize(phone));
+
+        // The real company name is collected during onboarding. Only seed a placeholder
+        // when we actually have a person's name — otherwise this used to persist " Şirketi".
+        string? placeholderCompanyName = authorizedName is null && authorizedSurname is null
+            ? null
+            : $"{authorizedName} {authorizedSurname}".Trim() + " Şirketi";
+
         return new LegacyCompany
         {
             Uid = $"{externalId}-company",
             ExternalId = externalId,
             IsAccountCompleted = false,
             Email = email,
-            Phone = phone,
-            CompanyName = $"{firstName} {lastName} Şirketi",
-            AuthorizedName = firstName,
-            AuthorizedSurname = lastName,
+            Phone = normalizedPhone,
+            CompanyName = placeholderCompanyName,
+            AuthorizedName = authorizedName,
+            AuthorizedSurname = authorizedSurname,
             Status = "pending_approval",
-            Username = $"{firstName.ToLower()}{lastName.ToLower()}{DateTimeOffset.UtcNow.Millisecond}",
+            Username = UsernameGenerator.Generate(authorizedName, authorizedSurname, externalId),
             Password = string.Empty,
             CreatedDate = DateTimeOffset.UtcNow,
             OnboardingReminderStep = 0,

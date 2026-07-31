@@ -28,10 +28,12 @@ internal sealed class UpdatePhoneService(
             if (string.IsNullOrWhiteSpace(request.Phone))
                 return Results.BadRequest(new ApiResponse<object>(false, "Telefon numarası boş olamaz.", null));
 
-            string newPhone = request.Phone.Trim();
+            // Persist the canonical shape (10 digits, no country code) so `phone_hash`
+            // stays comparable across services regardless of how the caller formatted it.
+            string newPhone = PhoneNormalizer.Normalize(request.Phone);
 
-            if (newPhone.Length < 7 || newPhone.Length > 20)
-                return Results.BadRequest(new ApiResponse<object>(false, "Telefon numarası 7-20 karakter arasında olmalıdır.", null));
+            if (!PhoneNormalizer.IsValid(newPhone))
+                return Results.BadRequest(new ApiResponse<object>(false, "Geçersiz telefon numarası. Örnek biçim: 0555 123 45 67", null));
 
             string? callerSub = caller.FindFirstValue("sub");
             string? callerRole = caller.FindFirstValue("role");
