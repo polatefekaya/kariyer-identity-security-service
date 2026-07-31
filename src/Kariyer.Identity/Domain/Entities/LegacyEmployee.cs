@@ -1,3 +1,5 @@
+using Kariyer.Identity.Features.Shared;
+
 namespace Kariyer.Identity.Domain.Entities;
 
 public class LegacyEmployee
@@ -85,18 +87,27 @@ public class LegacyEmployee
 
     protected LegacyEmployee() { }
 
+    private static string? NullIfBlank(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     public static LegacyEmployee CreateFromExternalProvider(Guid externalId, string email, string phone, string firstName, string lastName, bool kvkkAydinlatmaAccepted, bool kullaniciSozlesmesiAccepted, bool acikRizaAccepted, bool ticariElektronikIletiAccepted)
     {
+        // Store NULL rather than "" for anything the provider did not supply, so the
+        // admin panel can tell "never provided" apart from "explicitly blank".
+        string? name = NullIfBlank(firstName);
+        string? surname = NullIfBlank(lastName);
+        string? normalizedPhone = NullIfBlank(PhoneNormalizer.Normalize(phone));
+
         return new LegacyEmployee
         {
             Uid = $"{externalId}-employee",
             ExternalId = externalId,
             IsAccountCompleted = false,
             Email = email,
-            Phone = phone,
-            Name = firstName,
-            Surname = lastName,
-            Username = $"{firstName.ToLower()}{lastName.ToLower()}{DateTimeOffset.UtcNow.Millisecond}",
+            Phone = normalizedPhone,
+            Name = name,
+            Surname = surname,
+            Username = UsernameGenerator.Generate(name, surname, externalId),
             Password = string.Empty,
             BirthDate = DateTimeOffset.UtcNow.Date,
             CreatedDate = DateTimeOffset.UtcNow,

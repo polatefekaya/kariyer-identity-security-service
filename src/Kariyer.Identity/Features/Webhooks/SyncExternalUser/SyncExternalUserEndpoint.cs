@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Kariyer.Identity.Domain.Entities;
+using Kariyer.Identity.Features.Shared;
 using Kariyer.Identity.Infrastructure.Auth;
 using Kariyer.Identity.Infrastructure.Persistence;
 using Kariyer.Identity.Infrastructure.Telemetry;
@@ -64,12 +65,15 @@ public static class SyncExternalUserEndpoint
             string provider = payload.Record.AppMetadata?.Provider ?? "email";
             activity?.SetTag("oauth.provider", provider);
 
-            string accountType = payload.Record.UserMetadata?.AccountType ?? string.Empty;
-            string firstName = payload.Record.UserMetadata?.FirstName ?? string.Empty;
-            string lastName = payload.Record.UserMetadata?.LastName ?? string.Empty;
-            string fullName = payload.Record.UserMetadata?.FullName ?? payload.Record.UserMetadata?.Name ?? string.Empty;
-            string phoneNumber = payload.Record.UserMetadata?.PhoneNumber ?? string.Empty;
-            string avatarUrl = payload.Record.UserMetadata?.AvatarUrl ?? string.Empty;
+            string accountType = (payload.Record.UserMetadata?.AccountType ?? string.Empty).Trim();
+            // The email signup path relies on auth-hub having trimmed these; OAuth providers
+            // and hand-crafted metadata make no such promise, so normalize here regardless.
+            string firstName = (payload.Record.UserMetadata?.FirstName ?? string.Empty).Trim();
+            string lastName = (payload.Record.UserMetadata?.LastName ?? string.Empty).Trim();
+            string fullName = (payload.Record.UserMetadata?.FullName ?? payload.Record.UserMetadata?.Name ?? string.Empty).Trim();
+            string phoneNumber = PhoneNormalizer.Normalize(payload.Record.UserMetadata?.PhoneNumber);
+            string avatarUrl = (payload.Record.UserMetadata?.AvatarUrl ?? string.Empty).Trim();
+            bool isMigration = payload.Record.UserMetadata?.IsMigration ?? false;
             bool kvkkAydinlatmaAccepted = payload.Record.UserMetadata?.KvkkAydinlatmaAccepted ?? false;
             bool kullaniciSozlesmesiAccepted = payload.Record.UserMetadata?.KullaniciSozlesmesiAccepted ?? false;
             bool acikRizaAccepted = payload.Record.UserMetadata?.AcikRizaAccepted ?? false;
@@ -114,8 +118,14 @@ public static class SyncExternalUserEndpoint
 
             activity?.SetTag("routing.is_company", isCompany);
             activity?.SetTag("routing.is_admin", isAdmin);
+            activity?.SetTag("routing.is_migration", isMigration);
 
             bool isNewRecord = false;
+            // Set when a migration signup finds no legacy row to link. Creating a record in
+            // that case mints a nameless, phoneless ghost account (the /migrate flow sends no
+            // first_name / last_name / phone_number), which then surfaces as a blank row in
+            // the admin panel. Skip creation and let the operator investigate instead.
+            bool migrationWithoutMatch = false;
 
             if (logger.IsEnabled(LogLevel.Trace))
             {
@@ -134,6 +144,7 @@ public static class SyncExternalUserEndpoint
                 await strategy.ExecuteAsync(async () =>
                 {
                     isNewRecord = false;
+                    migrationWithoutMatch = false;
                     dbContext.ChangeTracker.Clear();
 
                     if (logger.IsEnabled(LogLevel.Trace))
@@ -164,6 +175,12 @@ public static class SyncExternalUserEndpoint
                                 {
                                     logger.LogTrace("[DIAG] Existing company already has correct ExternalId. No update needed.");
                                 }
+                            }
+                            else if (isMigration)
+                            {
+                                migrationWithoutMatch = true;
+                                logger.LogWarning("Migration signup for {Email} (ExternalId: {ExternalId}) matched no legacy company. Skipping creation — /migrate carries no name or phone, so creating here would mint a nameless account.", email, externalId);
+                                activity?.AddEvent(new ActivityEvent("MigrationWithoutMatch"));
                             }
                             else
                             {
@@ -230,6 +247,12 @@ public static class SyncExternalUserEndpoint
                                 {
                                     logger.LogTrace("[DIAG] Existing employee already has correct ExternalId. No update needed.");
                                 }
+                            }
+                            else if (isMigration)
+                            {
+                                migrationWithoutMatch = true;
+                                logger.LogWarning("Migration signup for {Email} (ExternalId: {ExternalId}) matched no legacy employee. Skipping creation — /migrate carries no name or phone, so creating here would mint a nameless account.", email, externalId);
+                                activity?.AddEvent(new ActivityEvent("MigrationWithoutMatch"));
                             }
                             else
                             {
@@ -321,9 +344,25 @@ public static class SyncExternalUserEndpoint
                 {
                     activity?.SetTag("transaction.outcome", "new_record_created");
                 }
+                else if (migrationWithoutMatch)
+                {
+                    activity?.SetTag("transaction.outcome", "migration_no_match");
+                }
                 else if (activity?.GetTagItem("transaction.outcome") == null)
                 {
                     activity?.SetTag("transaction.outcome", "legacy_account_migrated");
+                }
+
+                if (migrationWithoutMatch)
+                {
+                    activity?.SetStatus(ActivityStatusCode.Ok, "Migration signup matched no legacy account");
+                    IdentityDiagnostics.WebhookProcessedCounter.Add(1,
+                        new KeyValuePair<string, object?>("outcome", "migration_no_match"),
+                        new KeyValuePair<string, object?>("account_type", accountType));
+
+                    // 200 so Supabase does not retry: the payload is well-formed, there is
+                    // simply nothing to link. Operator follow-up happens via the log/metric.
+                    return Results.Ok();
                 }
 
                 // Record consent logs for docs accepted at signup.
