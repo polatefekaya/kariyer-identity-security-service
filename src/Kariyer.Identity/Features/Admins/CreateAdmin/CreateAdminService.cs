@@ -18,6 +18,15 @@ internal sealed class CreateAdminService(
         activity?.SetTag("admin.email", request.Email);
         activity?.SetTag("admin.role", request.Role);
 
+        if (!AdminConstants.IsAllowedRole(request.Role))
+        {
+            logger.LogWarning("CreateAdmin rejected: unknown role {Role}", request.Role);
+            return new ApiResponse<CreateAdminResponseData>(
+                Success: false,
+                Message: $"Geçersiz yönetici rolü. Geçerli roller: {AdminConstants.AllowedRolesDescription}.",
+                Data: null);
+        }
+
         if (!AdminConstants.IsAllowedEmailDomain(request.Email))
         {
             logger.LogWarning("CreateAdmin rejected: email domain not allowed for {Email}", request.Email);
