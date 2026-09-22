@@ -347,6 +347,7 @@ try
     builder.Services.AddScoped<ISupabaseAdminAuthService, SupabaseAdminAuthService>();
     builder.Services.AddHostedService<IncompleteAccountSweeperWorker>();
     builder.Services.AddHostedService<GracePeriodSweeperWorker>();
+    builder.Services.AddClientAddressResolution(builder.Configuration);
     builder.Services.AddCustomReverseProxy(builder.Configuration);
 
     builder.Services.ConfigureHttpJsonOptions(options =>
@@ -396,6 +397,11 @@ try
         Supabase.Client supabaseClient = app.Services.GetRequiredService<Supabase.Client>();
         await supabaseClient.InitializeAsync();
     }
+
+    // First: everything below — request logging, the rate limiter, YARP's X-Forwarded-*
+    // rewrite — reads Connection.RemoteIpAddress / Request.Scheme, and until this runs they
+    // are nginx's, not the visitor's.
+    app.UseClientAddressResolution();
 
     app.UseExceptionHandler(exceptionHandlerApp =>
     {
