@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GITHUB_USER: ${GITHUB_USER}
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
     container_name: kiss-gateway
     network_mode: host
     restart: unless-stopped
