@@ -108,12 +108,16 @@ try
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://localhost:5173",
+                // kariyer-basvuru-web (işveren paneli) dev server & production.
+                "http://localhost:5199",
                 "https://kariyerzamani.com",
                 "https://kz-admin.kariyerzamani.com",
                 "https://admin.kariyerzamani.com",
-                "https://tst.kariyerzamani.com"
+                "https://tst.kariyerzamani.com",
+                "https://kz-basvurular.kariyerzamani.com",
+                "https://basvurular.kariyerzamani.com"
             )
-            .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .AllowAnyHeader()
             .AllowCredentials();
         });
